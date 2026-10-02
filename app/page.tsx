@@ -1,13 +1,12 @@
+import EscapadeApp from "@/components/EscapadeApp";
+import { nextMonths } from "@/lib/dates";
+import { DEFAULT_DEPARTURES, resolveDeparture } from "@/lib/places";
+
+// La liste des mois dépend de la date du jour : la page se rend à chaque requête plutôt qu'au build.
+export const dynamic = "force-dynamic";
+
 export default function Home() {
-  return (
-    <main className="shell">
-      <section className="hero">
-        <h1>
-          On part <span className="grad">où</span> ce week-end ?
-        </h1>
-        <p className="hero-sub">Depuis Lyon et Genève, au meilleur prix, en dix secondes.</p>
-        <p className="hint">Le moteur de recherche arrive à l&apos;étape suivante.</p>
-      </section>
-    </main>
-  );
+  const months = nextMonths(6);
+  const initialDepartures = DEFAULT_DEPARTURES.map(resolveDeparture).filter((d) => d !== null);
+  return <EscapadeApp initialDepartures={initialDepartures} months={months} />;
 }

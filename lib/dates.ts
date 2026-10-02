@@ -18,11 +18,22 @@ export interface MonthOption {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Les prochains mois à proposer, en commençant par le mois courant. */
+/** Premier jour de départ acceptable : demain. */
+export const earliestDeparture = (today = new Date()): string => toISO(addDays(today, 1));
+
+/** Les prochains mois à proposer, en commençant par le mois courant s'il lui reste un vendredi à venir. */
 export function nextMonths(count = 6, from = new Date()): MonthOption[] {
   const out: MonthOption[] = [];
   let y = from.getUTCFullYear();
   let m = from.getUTCMonth();
+  const min = earliestDeparture(from);
+  if (!fridaysOf(`${y}-${String(m + 1).padStart(2, "0")}`).some((f) => f >= min)) {
+    m++;
+    if (m === 12) {
+      m = 0;
+      y++;
+    }
+  }
   for (let i = 0; i < count; i++) {
     out.push({ value: `${y}-${String(m + 1).padStart(2, "0")}`, label: `${cap(MONTHS_FR[m])} ${y}`, short: `${MONTHS_SHORT_FR[m]} ${y}` });
     m++;
@@ -50,9 +61,10 @@ export const NIGHTS: Record<DurationPreset, number> = { weekend: 2, long: 3, wee
 
 /**
  * Fenêtres de dates candidates. En mode flexible : un départ par vendredi du mois
- * (samedi pour une semaine) ; en mode fixe : une seule fenêtre, ou aucune si les dates sont incohérentes.
+ * (samedi pour une semaine), les départs avant demain étant ignorés ;
+ * en mode fixe : une seule fenêtre, ou aucune si les dates sont incohérentes.
  */
-export function buildWindows(p: Pick<SearchParams, "dateMode" | "month" | "duration" | "dateOut" | "dateIn">): DateWindow[] {
+export function buildWindows(p: Pick<SearchParams, "dateMode" | "month" | "duration" | "dateOut" | "dateIn">, today = new Date()): DateWindow[] {
   if (p.dateMode === "fixed") {
     if (!p.dateOut || !p.dateIn) return [];
     const out = parseISO(p.dateOut);
@@ -62,8 +74,11 @@ export function buildWindows(p: Pick<SearchParams, "dateMode" | "month" | "durat
     return [{ out: p.dateOut, ret: p.dateIn, nights, monthIndex: out.getUTCMonth(), key: p.dateOut }];
   }
   const nights = NIGHTS[p.duration];
-  return fridaysOf(p.month).map((friday, i) => {
-    const start = p.duration === "week" ? addDays(parseISO(friday), 1) : parseISO(friday);
-    return { out: toISO(start), ret: toISO(addDays(start, nights)), nights, monthIndex: start.getUTCMonth(), key: `${p.month}|${i}` };
-  });
+  const min = earliestDeparture(today);
+  return fridaysOf(p.month)
+    .map((friday, i) => {
+      const start = p.duration === "week" ? addDays(parseISO(friday), 1) : parseISO(friday);
+      return { out: toISO(start), ret: toISO(addDays(start, nights)), nights, monthIndex: start.getUTCMonth(), key: `${p.month}|${i}` };
+    })
+    .filter((w) => w.out >= min);
 }

@@ -61,8 +61,9 @@ export function departureFromCity(city: City): DeparturePoint {
   for (const a of AIRPORTS) {
     const km = haversineKm(city, a);
     if (km > NEARBY_KM) continue;
+    // Principal : il dessert la ville elle-même, ou c'est un grand aéroport tout proche (Orly pour Paris).
     const sameCity = norm(a.city) === norm(city.label) || norm(a.city) === norm(city.en);
-    if (sameCity || km <= MAIN_KM) main.push(a.iata);
+    if (sameCity || (km <= MAIN_KM && a.size === "L")) main.push(a.iata);
     else nearby.push({ iata: a.iata, name: a.name, city: a.city, km: Math.round(km), minutes: accessMinutes(km) });
   }
   // Les gros aéroports d'abord parmi les principaux, puis les plus proches parmi les voisins.

@@ -20,6 +20,11 @@ describe("resolveDeparture", () => {
     expect(gva.km).toBeLessThan(130);
     expect(gva.minutes).toBeGreaterThan(60);
   });
+  it("Genève : GVA principal, Annecy (petit aéroport à 34 km) en voisin", () => {
+    const g = resolveDeparture("Genève")!;
+    expect(g.airports).toEqual(["GVA"]);
+    expect(g.nearby.map((n) => n.iata)).toContain("NCY");
+  });
   it("accepte les accents absents et les alias", () => {
     expect(resolveDeparture("geneve")!.id).toBe("geneve");
     expect(resolveDeparture("Geneva")!.label).toBe("Genève");

@@ -320,3 +320,6 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Hôte des paysages SVG : couvre son parent positionné */
+.scene-host { position: absolute; inset: 0; }
