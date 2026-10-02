@@ -20,7 +20,7 @@ Scripts :
 | `npm run build` / `npm start` | build de production et démarrage |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | génération des types Next puis `tsc --noEmit` |
-| `npm test` | tests unitaires (lanceur natif de Node, fichiers `*.test.ts`) |
+| `npm test` | tests unitaires (vitest, fichiers `lib/**/*.test.ts`) |
 | `npm run build:airports -- chemin/airports.csv` | régénère `lib/data/airports.json` depuis le CSV OurAirports |
 
 ## Stack
@@ -48,4 +48,8 @@ docs/           guides (création des comptes API, etc.)
 - **Aéroports** : OurAirports (domaine public), filtrés sur l'Europe, le Maghreb et le Proche-Orient.
 - **Carte** : contours Natural Earth 110m (domaine public) dessinés en SVG, sans tuiles externes.
 
-Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.env.example` et `docs/APIS.md`).
+Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.env.example` et `docs/APIS.md`, qui explique pas à pas comment créer le compte Travelpayouts et passer aux prix réels).
+
+## Villes de départ
+
+Tape n'importe quelle ville (« Paris », « Marseille », « Annecy ») dans *Villes de départ* : l'app retrouve ses aéroports principaux, les aéroports à moins de 2 h (cochables un par un, avec distance et temps d'accès estimé) et ses grandes gares. Le prix de chaque escapade retient le point de départ le moins cher, et la fiche indique lequel (« via Bâle · 2 h »).
