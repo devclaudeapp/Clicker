@@ -76,7 +76,8 @@ describe("computeTrips", () => {
     const byTotal = sortTrips(trips, "total");
     expect(byTotal[0].perPerson).toBeLessThanOrEqual(byTotal[1].perPerson);
     const byTemp = sortTrips(trips, "temp");
-    expect(byTemp[0].destination.id).toBe("rak");
+    expect(byTemp[0].temp).toBeGreaterThanOrEqual(byTemp[1].temp);
+    expect(byTemp[0].temp).toBeGreaterThanOrEqual(byTemp[byTemp.length - 1].temp + 10);
     const sunny = trips.filter((t) => matchesVibes(t, ["sun", "beach"]));
     expect(sunny.map((t) => t.destination.id)).toContain("agp");
     expect(sunny.map((t) => t.destination.id)).not.toContain("prg");

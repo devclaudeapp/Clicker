@@ -10,14 +10,23 @@ describe("géo", () => {
   it("temps d'accès : 112 km ≈ 1 h 40", () => {
     expect(accessMinutes(112)).toBe(99);
   });
-  it("projette Lyon au milieu de la carte, le nord en haut", () => {
+  it("projette Lyon vers le centre de la carte, le nord en haut", () => {
     const [x, y] = project(4.836, 45.764);
-    expect(x).toBeGreaterThan(400);
+    expect(x).toBeGreaterThan(450);
     expect(x).toBeLessThan(600);
-    expect(y).toBeGreaterThan(300);
-    expect(y).toBeLessThan(MAP.H / 2);
+    expect(y).toBeGreaterThan(MAP.H * 0.5);
+    expect(y).toBeLessThan(MAP.H * 0.7);
     const [, yNorth] = project(4.836, 50);
     expect(yNorth).toBeLessThan(y);
+  });
+  it("garde Reykjavik, Istanbul et Tenerife dans le cadre", () => {
+    for (const [lon, lat] of [[-21.9, 64.1], [28.98, 41.0], [-16.6, 28.0], [-7.99, 31.63]]) {
+      const [x, y] = project(lon, lat);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x).toBeLessThanOrEqual(MAP.W);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y).toBeLessThanOrEqual(MAP.H);
+    }
   });
   it("l'arc bombe vers le haut de l'écran", () => {
     expect(arcPath(0, 0, 100, 50)).toBe("M0.0,0.0 Q59.0,7.0 100.0,50.0");

@@ -18,8 +18,8 @@ export function haversineKm(a: LatLon, b: LatLon): number {
 /** Temps d'accès estimé à un aéroport voisin : 20 min d'approche puis ~85 km/h. */
 export const accessMinutes = (km: number): number => Math.round(20 + (km / 85) * 60);
 
-/** Projection de Mercator sur une boîte Europe + Maghreb, en unités SVG. */
-export const MAP = { lon0: -14, lon1: 24, lat0: 30, lat1: 57, W: 1000, H: 0 };
+/** Projection de Mercator sur une boîte des Canaries à Istanbul et du Maghreb à l'Islande, en unités SVG. */
+export const MAP = { lon0: -25, lon1: 32, lat0: 27, lat1: 65, W: 1000, H: 0 };
 const mercY = (lat: number) => (Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) * 180) / Math.PI;
 const K = MAP.W / (MAP.lon1 - MAP.lon0);
 MAP.H = (mercY(MAP.lat1) - mercY(MAP.lat0)) * K;
