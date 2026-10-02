@@ -6,9 +6,13 @@ interface Props {
   onToggleFavs: () => void;
   departureLabels: string[];
   onOpenSettings: () => void;
+  /** Nom du fournisseur de prix actif, renvoyé par l'API (« mock », « travelpayouts »). */
+  provider: string | null;
 }
 
-export function Header({ favCount, onlyFavs, onToggleFavs, departureLabels, onOpenSettings }: Props) {
+const PROVIDER_LABEL: Record<string, string> = { mock: "Prix fictifs", travelpayouts: "Prix Aviasales · cache 48 h" };
+
+export function Header({ favCount, onlyFavs, onToggleFavs, departureLabels, onOpenSettings, provider }: Props) {
   return (
     <header className="top glass">
       <div className="top-inner">
@@ -18,6 +22,7 @@ export function Header({ favCount, onlyFavs, onToggleFavs, departureLabels, onOp
           </span>
           Escapade
         </div>
+        {provider && <span className="pill">{PROVIDER_LABEL[provider] ?? provider}</span>}
         <nav>
           <button className={onlyFavs ? "btn sm on" : "btn sm"} type="button" aria-pressed={onlyFavs} onClick={onToggleFavs} aria-label="Afficher seulement les favoris">
             <Icon name="heart" />

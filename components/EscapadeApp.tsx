@@ -54,6 +54,7 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
   const [swiped, setSwiped] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [trips, setTrips] = useState<TripOption[]>([]);
+  const [provider, setProvider] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,8 +94,9 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
       try {
         const res = await fetch("/api/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(query), signal: ctrl.signal });
         if (!res.ok) throw new Error(String(res.status));
-        const data: { trips: TripOption[] } = await res.json();
+        const data: { trips: TripOption[]; provider: string | null } = await res.json();
         setTrips(data.trips);
+        setProvider(data.provider);
         setError(null);
       } catch (e) {
         if (!(e instanceof DOMException && e.name === "AbortError")) setError("Impossible de charger les prix. Réessaie dans un instant.");
@@ -189,7 +191,7 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
 
   return (
     <>
-      <Header favCount={prefs.favs.length} onlyFavs={onlyFavs} onToggleFavs={() => setOnlyFavs((v) => !v)} departureLabels={depLabels} onOpenSettings={() => setSettingsOpen(true)} />
+      <Header favCount={prefs.favs.length} onlyFavs={onlyFavs} onToggleFavs={() => setOnlyFavs((v) => !v)} departureLabels={depLabels} onOpenSettings={() => setSettingsOpen(true)} provider={provider} />
       <main className="shell">
         <section className="hero">
           <h1>
