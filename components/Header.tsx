@@ -28,9 +28,9 @@ export function Header({ favCount, onlyFavs, onToggleFavs, departureLabels, onOp
             <Icon name="heart" />
             <span className="num">{favCount}</span>
           </button>
-          <button className="btn sm" type="button" onClick={onOpenSettings}>
+          <button className="btn sm" type="button" onClick={onOpenSettings} title="Villes de départ">
             <Icon name="pin" />
-            {departureLabels.length ? departureLabels.join(" · ") : "Villes"}
+            <span className="lbl">{departureLabels.length ? departureLabels.join(" · ") : "Villes"}</span>
           </button>
         </nav>
       </div>
