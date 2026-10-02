@@ -42,3 +42,6 @@ next-env.d.ts
 
 # garder le modèle de configuration
 !.env.example
+
+# sorties des tests de bout en bout
+/e2e/out/

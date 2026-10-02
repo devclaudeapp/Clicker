@@ -21,7 +21,11 @@ Scripts :
 | `npm run lint` | ESLint |
 | `npm run typecheck` | génération des types Next puis `tsc --noEmit` |
 | `npm test` | tests unitaires (vitest, fichiers `lib/**/*.test.ts`) |
+| `npm run e2e [-- http://localhost:3000]` | scénario de fumée dans Chromium contre un serveur qui tourne : bureau, mobile, lien partagé, captures dans `e2e/out/` (une fois : `npx playwright install chromium`) |
 | `npm run build:airports -- chemin/airports.csv` | régénère `lib/data/airports.json` depuis le CSV OurAirports |
+| `npm run build:icons` | régénère les icônes PNG de `public/icons/` depuis `app/icon.svg` |
+
+La CI GitHub Actions (`.github/workflows/ci.yml`) rejoue lint, types, tests et build à chaque push.
 
 ## Stack
 
@@ -49,6 +53,10 @@ docs/           guides (création des comptes API, etc.)
 - **Carte** : contours Natural Earth 110m (domaine public) dessinés en SVG, sans tuiles externes.
 
 Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.env.example` et `docs/APIS.md`, qui explique pas à pas comment créer le compte Travelpayouts et passer aux prix réels).
+
+## Partager et installer
+
+Le bouton **Partager** copie un lien qui rejoue la recherche telle quelle (villes, dates, voyageurs, budget, envies, vue, fiche ouverte) ; l'adresse du navigateur suit d'ailleurs chaque changement. L'app a un manifeste PWA : sur téléphone, « Ajouter à l'écran d'accueil » l'ouvre en plein écran.
 
 ## Villes de départ
 

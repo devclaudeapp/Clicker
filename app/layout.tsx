@@ -7,6 +7,15 @@ export const metadata: Metadata = {
   title: { default: "Escapade", template: "%s · Escapade" },
   description: "Où partir ce week-end depuis tes villes, au meilleur prix, en dix secondes.",
   applicationName: "Escapade",
+  // Déclaré explicitement : un objet `icons` dans les métadonnées remplace la convention de fichier app/icon.svg.
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
+  },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Escapade" },
 };
 
 export const viewport: Viewport = {
