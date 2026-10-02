@@ -18,6 +18,7 @@ interface Props {
   onFav: (id: string) => void;
   onClose: () => void;
   onToast: (msg: string) => void;
+  onShareLink: () => void;
 }
 
 function Ext({ href, label, primary }: { href: string; label: string; primary?: boolean }) {
@@ -29,7 +30,7 @@ function Ext({ href, label, primary }: { href: string; label: string; primary?: 
 }
 
 /** Fiche complète d'une escapade : paysage, trajet, budget, vols, alternatives terrestres, hébergement. */
-export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, onClose, onToast }: Props) {
+export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, onClose, onToast, onShareLink }: Props) {
   const d = trip.destination;
   const w = trip.window;
   const a = travelers;
@@ -252,8 +253,11 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
           <button className={fav ? "btn on" : "btn"} type="button" onClick={() => onFav(d.id)}>
             <Icon name="heart" /> {fav ? "Dans tes favoris" : "Ajouter aux favoris"}
           </button>
-          <button className="btn" type="button" onClick={share}>
+          <button className="btn" type="button" onClick={onShareLink}>
             <Icon name="share" />
+            Copier le lien
+          </button>
+          <button className="btn" type="button" onClick={share}>
             Copier le résumé
           </button>
         </div>

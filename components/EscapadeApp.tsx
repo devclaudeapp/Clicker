@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DeparturePoint, SearchParams, SortKey, TripOption, VibeId, ViewMode } from "@/types";
 import { buildWindows, type MonthOption } from "@/lib/dates";
 import { eur, fmtLong, fmtShort, listFr, plural } from "@/lib/format";
 import { defaultPrefs, getPrefsSnapshot, getServerPrefsSnapshot, subscribePrefs, updatePrefs, type Prefs } from "@/lib/prefs";
 import { matchesVibes, originsFor, sortTrips } from "@/lib/pricing";
+import { encodeShare, type SharedInput } from "@/lib/share";
 import { Header } from "./Header";
 import { SearchRail, type SearchForm } from "./search/SearchRail";
 import { VibeChips } from "./search/VibeChips";
@@ -19,6 +20,9 @@ import { DeparturesDialog } from "./settings/DeparturesDialog";
 interface Props {
   initialDepartures: DeparturePoint[];
   months: MonthOption[];
+  /** Recherche portée par l'URL (lien partagé), déjà validée côté serveur. */
+  shared?: SharedInput;
+  sharedDepartures?: DeparturePoint[];
 }
 
 /** Champs de recherche non persistés : dates et transports. */
@@ -28,29 +32,29 @@ const DURATION_LABEL = { weekend: "ce week-end", long: "ce long week-end", week:
 const DURATION_SHORT = { weekend: "week-end", long: "long week-end", week: "semaine" } as const;
 const DURATION_LONG = { weekend: "week-end (2 nuits)", long: "long week-end (3 nuits)", week: "semaine (7 nuits)" } as const;
 
-export default function EscapadeApp({ initialDepartures, months }: Props) {
+export default function EscapadeApp({ initialDepartures, months, shared = {}, sharedDepartures = [] }: Props) {
   const defaults = useMemo(() => defaultPrefs(initialDepartures), [initialDepartures]);
   const stored = useSyncExternalStore(subscribePrefs, getPrefsSnapshot, getServerPrefsSnapshot);
   const prefs: Prefs = stored ?? defaults;
   const setPrefs = useCallback((update: (p: Prefs) => Prefs) => updatePrefs(update, defaults), [defaults]);
 
   const firstFlex = useMemo(() => buildWindows({ dateMode: "flex", month: months[0].value, duration: "weekend", dateOut: "", dateIn: "" })[0], [months]);
-  const [form, setForm] = useState<DateForm>({
-    dateMode: "flex",
-    month: months[0].value,
-    duration: "weekend",
-    dateOut: firstFlex?.out ?? "",
-    dateIn: firstFlex?.ret ?? "",
-    modes: { plane: true, train: true, bus: true, car: true },
-    directOnly: false,
-  });
-  const [vibes, setVibes] = useState<VibeId[]>([]);
-  const [view, setView] = useState<ViewMode>("grid");
+  const [form, setForm] = useState<DateForm>(() => ({
+    dateMode: shared.dateMode ?? "flex",
+    month: shared.month && months.some((m) => m.value === shared.month) ? shared.month : months[0].value,
+    duration: shared.duration ?? "weekend",
+    dateOut: shared.dateOut ?? firstFlex?.out ?? "",
+    dateIn: shared.dateIn ?? firstFlex?.ret ?? "",
+    modes: shared.modes ?? { plane: true, train: true, bus: true, car: true },
+    directOnly: shared.directOnly ?? false,
+  }));
+  const [vibes, setVibes] = useState<VibeId[]>(shared.vibes ?? []);
+  const [view, setView] = useState<ViewMode>(shared.view ?? "grid");
   const [sort, setSort] = useState<SortKey>("total");
   const [onlyFavs, setOnlyFavs] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(shared.open ?? null);
   const [swiped, setSwiped] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [trips, setTrips] = useState<TripOption[]>([]);
@@ -62,6 +66,30 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
     setToast(msg);
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 1800);
   }, []);
+
+  // Lien partagé : on ajoute les villes de l'expéditeur aux réglages et on active exactement celles-là, une seule fois.
+  const sharedApplied = useRef(false);
+  useEffect(() => {
+    if (sharedApplied.current) return;
+    sharedApplied.current = true;
+    const hasPrefs = sharedDepartures.length > 0 || shared.includeNearby !== undefined || shared.excludedNearby || shared.travelers || shared.budget;
+    if (!hasPrefs) return;
+    setPrefs((p) => {
+      const saved = p.saved.slice();
+      for (const d of sharedDepartures) if (!saved.some((s) => s.id === d.id)) saved.push(d);
+      return {
+        ...p,
+        saved,
+        activeIds: sharedDepartures.length ? sharedDepartures.map((d) => d.id) : p.activeIds,
+        includeNearby: shared.includeNearby ?? p.includeNearby,
+        excludedNearby: shared.excludedNearby ?? p.excludedNearby,
+        travelers: shared.travelers ?? p.travelers,
+        budget: shared.budget ?? p.budget,
+      };
+    });
+    const t = window.setTimeout(() => showToast("Recherche partagée chargée"), 0);
+    return () => window.clearTimeout(t);
+  }, [sharedDepartures, shared, setPrefs, showToast]);
 
   // La requête serveur ne dépend que de ces champs ; budget et envies se filtrent ici, sans appel.
   const departures = useMemo(() => prefs.saved.filter((d) => prefs.activeIds.includes(d.id)), [prefs.saved, prefs.activeIds]);
@@ -186,6 +214,42 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
     if (Object.keys(rest).length) setForm((f) => ({ ...f, ...rest }));
   };
 
+  // Lien de partage : l'adresse reflète toujours la recherche courante, et un bouton la copie.
+  const shareQuery = useCallback(
+    (open: string | null) =>
+      encodeShare({
+        departures: departures.map((d) => d.label),
+        includeNearby: prefs.includeNearby,
+        excludedNearby: prefs.excludedNearby,
+        dateMode: form.dateMode,
+        month: form.month,
+        duration: form.duration,
+        dateOut: form.dateOut,
+        dateIn: form.dateIn,
+        travelers: prefs.travelers,
+        budget: prefs.budget,
+        modes: form.modes,
+        directOnly: form.directOnly,
+        vibes,
+        view,
+        open,
+      }),
+    [departures, prefs.includeNearby, prefs.excludedNearby, prefs.travelers, prefs.budget, form, vibes, view],
+  );
+  const currentQuery = shareQuery(openId);
+  useEffect(() => {
+    const t = window.setTimeout(() => window.history.replaceState(null, "", `${window.location.pathname}?${currentQuery}`), 300);
+    return () => window.clearTimeout(t);
+  }, [currentQuery]);
+  const copyLink = useCallback(
+    (open: string | null) => {
+      const url = `${window.location.origin}${window.location.pathname}?${shareQuery(open)}`;
+      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(() => showToast("Lien copié")).catch(() => showToast("Copie impossible ici"));
+      else showToast("Copie impossible ici");
+    },
+    [shareQuery, showToast],
+  );
+
   const overlayOpen = railOpen || settingsOpen || openId !== null;
   const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}`;
 
@@ -217,7 +281,7 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
           />
 
           <section className="results" aria-live="polite">
-            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={setView} sort={sort} onSort={setSort} loading={loading} />
+            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={setView} sort={sort} onSort={setSort} loading={loading} onShare={() => copyLink(null)} />
             {error && <p className="note warn">{error}</p>}
             {outBudget.length > 0 && (
               <p className="note warn">
@@ -257,6 +321,7 @@ export default function EscapadeApp({ initialDepartures, months }: Props) {
           onFav={toggleFav}
           onClose={() => setOpenId(null)}
           onToast={showToast}
+          onShareLink={() => copyLink(openTrip.destination.id)}
         />
       )}
       {settingsOpen && (

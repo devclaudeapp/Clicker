@@ -9,6 +9,7 @@ interface Props {
   sort: SortKey;
   onSort: (s: SortKey) => void;
   loading: boolean;
+  onShare: () => void;
 }
 
 const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
@@ -17,7 +18,7 @@ const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
   { id: "map", label: "Carte", icon: "map" },
 ];
 
-export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loading }: Props) {
+export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loading, onShare }: Props) {
   return (
     <div className="results-head" style={{ opacity: loading ? 0.7 : 1, transition: "opacity .2s" }}>
       <div>
@@ -44,6 +45,10 @@ export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loa
             </select>
           </label>
         )}
+        <button className="btn sm" type="button" onClick={onShare} title="Copier le lien de cette recherche">
+          <Icon name="share" />
+          Partager
+        </button>
       </div>
     </div>
   );
