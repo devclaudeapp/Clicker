@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/unbounded";
 import "@fontsource-variable/manrope";
 import "./globals.css";
-import "TravelpayoutsDrive"import { TravelpayoutsDrive } from "@/components/TravelpayoutsDrive";
- from "@/components/TravelpayoutsDrive"
 
 /** Base des URL absolues (images d'aperçu) : le domaine public en production, Vercel ou localhost sinon. */
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
@@ -35,7 +33,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className="h-full antialiased">
-      <body className="min-h-full flex flex-col"> < TravelpayoutsDrive />
+      <body className="min-h-full flex flex-col">
         {/* Les photos des destinations viennent de Wikimedia : React remonte ces indications dans <head>. */}
         <link rel="preconnect" href="https://upload.wikimedia.org" />
         <link rel="preconnect" href="https://thumb.wikimedia.org" />
