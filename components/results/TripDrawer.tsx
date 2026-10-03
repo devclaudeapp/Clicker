@@ -212,12 +212,10 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
                     {g.mode === "train" && (
                       <>
                         <Ext href={LINKS.sncfConnect(dep.label, d.city, w.out)} label="SNCF Connect" primary />
-                        <span className="btn sm" aria-disabled="true" title="Nécessite les identifiants de gares (étape suivante)">
-                          Trainline
-                        </span>
+                        <Ext href={LINKS.trainline(dep.label, d.city, w.out, w.ret)} label="Trainline" />
                       </>
                     )}
-                    {g.mode === "bus" && <Ext href={LINKS.flixbus(dep.en, d.en)} label="FlixBus" primary />}
+                    {g.mode === "bus" && <Ext href={LINKS.flixbus(dep.en, d.en, w.out, w.ret, a)} label="FlixBus" primary />}
                     {g.mode === "car" && (
                       <>
                         <Ext href={LINKS.blablacar(dep.label, d.city, w.out, a)} label="BlaBlaCar (aller)" primary />
@@ -233,7 +231,8 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
               <p className="note">Pas d&apos;estimation terrestre pour ce trajet. Les sites, eux, savent répondre :</p>
               <div className="links">
                 <Ext href={LINKS.sncfConnect(firstDep.label, d.city, w.out)} label="SNCF Connect" />
-                <Ext href={LINKS.flixbus(firstDep.en, d.en)} label="FlixBus" />
+                <Ext href={LINKS.trainline(firstDep.label, d.city, w.out, w.ret)} label="Trainline" />
+                <Ext href={LINKS.flixbus(firstDep.en, d.en, w.out, w.ret, a)} label="FlixBus" />
                 <Ext href={LINKS.blablacar(firstDep.label, d.city, w.out, a)} label="BlaBlaCar" />
               </div>
             </div>
