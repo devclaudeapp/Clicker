@@ -3,6 +3,7 @@ import type { DeparturePoint, TransportCandidate, TravelProfile, TripOption } fr
 import { eur, fmtLong, fmtShort, minutesLabel, plural } from "@/lib/format";
 import { haversineKm } from "@/lib/geo";
 import { LINKS } from "@/lib/links";
+import { photoCredit, photoFor } from "@/lib/photos";
 import { originOf } from "@/lib/pricing";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
@@ -46,6 +47,7 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
   const firstDep = departures[0];
   const plan = useItinerary(trip, profile);
   const activities = plan.itinerary ? plan.itinerary.costPerPerson * a : null;
+  const photo = photoFor(d.id);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -65,7 +67,7 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
       <div className="drawer-inner">
         <span className="handle" aria-hidden="true" />
         <div className="hero-post">
-          <Scene dest={d} />
+          <Scene dest={d} width={1280} />
           <TempTag temp={trip.temp} />
           <button className="btn sm close" type="button" aria-label="Fermer" ref={closeRef} onClick={onClose}>
             ✕
@@ -77,6 +79,11 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
             </p>
             <LandTags dest={d} />
           </div>
+          {photo && (
+            <a className="credit" href={photo.page} target="_blank" rel="noopener" title="Voir la photo sur Wikimedia Commons">
+              {photoCredit(photo)}
+            </a>
+          )}
         </div>
 
         <div className="route glass">

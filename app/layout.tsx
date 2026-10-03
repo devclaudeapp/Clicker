@@ -34,6 +34,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
+        {/* Les photos des destinations viennent de Wikimedia : React remonte ces indications dans <head>. */}
+        <link rel="preconnect" href="https://upload.wikimedia.org" />
+        <link rel="preconnect" href="https://thumb.wikimedia.org" />
         {/* Aurores animées en fond, derrière toute la page */}
         <div className="aurora" aria-hidden="true">
           <i />

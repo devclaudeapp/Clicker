@@ -101,6 +101,21 @@ export interface SceneSpec {
   near: "sea" | "beach" | "river" | "canal" | "ground";
 }
 
+/** Photo libre d'une destination (Wikimedia Commons), avec l'attribution à afficher. */
+export interface Photo {
+  /** Miniature servie par Wikimedia, largeur `w` (la plus grande disponible). */
+  src: string;
+  w: number;
+  h: number;
+  /** Largeurs de miniature générées et vérifiées, croissantes ; lib/photos.ts en dérive les adresses. */
+  widths: number[];
+  author: string;
+  /** Licence abrégée (« CC BY-SA 4.0 »), vide si inconnue. */
+  license: string;
+  /** Page du fichier sur Commons, cible du crédit. */
+  page: string;
+}
+
 /** Tarif de référence d'un vol A/R par personne, hors saison, depuis un aéroport d'origine. */
 export interface BaseFare {
   origin: string;

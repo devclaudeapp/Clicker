@@ -145,7 +145,7 @@ export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDe
                   </>
                 )}
                 <div className="post">
-                  <Scene dest={d} />
+                  <Scene dest={d} width={800} />
                   <TempTag temp={t.temp} />
                 </div>
                 <div className="card-head">

@@ -231,7 +231,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
       {activeTrip && (
         <div className="tip glass-3" ref={tipRef}>
           <div className="post">
-            <Scene dest={activeTrip.destination} />
+            <Scene dest={activeTrip.destination} width={320} />
             <TempTag temp={activeTrip.temp} />
           </div>
           <div className="body">

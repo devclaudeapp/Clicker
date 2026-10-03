@@ -11,6 +11,7 @@
     "test": "vitest run",
     "build:airports": "node scripts/build-airports.mjs",
     "build:flixbus": "node scripts/build-flixbus.mjs",
+    "build:photos": "node scripts/build-photos.mjs",
     "test:watch": "vitest",
     "e2e": "node e2e/smoke.mjs",
     "build:icons": "node scripts/build-icons.mjs"

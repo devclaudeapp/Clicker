@@ -43,6 +43,10 @@ await session("bureau", { width: 1360, height: 900 }, async (page) => {
   const cards = await page.locator(".card").count();
   check("grille : des escapades s'affichent", cards > 10, `${cards} cartes`);
   check("largeur du document", (await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
+  // Les photos viennent de Wikimedia : on attend la première, sans échouer si le réseau externe est coupé.
+  await page.waitForFunction(() => [...document.querySelectorAll(".card .post img")].some((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15000 }).catch(() => {});
+  const photos = await page.evaluate(() => [...document.querySelectorAll(".card .post img")].filter((i) => i.complete && i.naturalWidth > 0).length);
+  check("grille : photos des destinations chargées", photos > 0, `${photos} chargées`);
   await page.screenshot({ path: join(OUT, "bureau-grille.png") });
 
   await page.locator(".card .btn").first().click();
@@ -52,6 +56,7 @@ await session("bureau", { width: 1360, height: 900 }, async (page) => {
   // Formats vérifiés à la main dans un navigateur : voir lib/links.ts.
   const linkIs = (label, re) => links.some(([t, h]) => t.includes(label) && re.test(h));
   check("fiche : formats des liens", linkIs("Google Flights", /\?tfs=[A-Za-z0-9%]+&hl=fr/) && linkIs("Trainline", /trainline\.fr\/search\/[a-z-]+\/[a-z-]+\/\d{4}-\d\d-\d\d\/\d{4}-\d\d-\d\d$/) && linkIs("FlixBus", /shop\.flixbus\.fr\/search\?.*rideDate=\d\d\.\d\d\.\d{4}&backRideDate=.*&adult=\d/) && linkIs("Aviasales", /currency=eur/));
+  check("fiche : crédit de la photo", (await page.locator(".hero-post .credit[href^='https://commons.wikimedia.org/']").count()) === 1);
   await page.waitForSelector(".drawer .plan .day", { timeout: 10000 });
   const days = await page.locator(".drawer .plan .day").count();
   const acts = await page.locator(".drawer .plan .days .act:not(.free)").count();
