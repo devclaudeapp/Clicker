@@ -57,6 +57,16 @@ Une destination absente depuis un petit aéroport n'est pas un bug : personne n'
 - garder « Inclure les alentours » coché : les grands aéroports voisins (Genève pour Lyon, Bâle pour Genève) ont presque toujours des données ;
 - préférer les dates flexibles aux dates fixes : l'app cherche alors tous les week-ends du mois.
 
-## 6. Plus tard : prix frais à la demande
+## 6. Cache partagé entre les instances (Upstash Redis)
+
+Le cache de 24 h vit en mémoire, donc par instance : sur Vercel, une instance recyclée ou une seconde instance repart de zéro et refait tous les appels (une recherche « Lyon + alentours » coûte ~300 appels, soit une trentaine de secondes). Un Redis partagé règle ça : la première recherche écrit ses réponses, toutes les suivantes, sur n'importe quelle instance, les lisent en quelques millisecondes pendant 24 h.
+
+1. Dans Vercel : projet escapade → **Storage** → **Create Database** → **Upstash** → Redis (plan gratuit), puis connecte-le au projet. Les variables `UPSTASH_REDIS_REST_URL` et `UPSTASH_REDIS_REST_TOKEN` (ou leurs anciens noms `KV_REST_API_URL` / `KV_REST_API_TOKEN`) sont ajoutées automatiquement.
+2. Redéploie. Rien d'autre à configurer : `lib/cache.ts` parle à Upstash en REST, sans dépendance, et `lib/providers/travelpayouts.ts` lit toutes les clés inconnues en un seul `MGET` avant d'appeler l'API, puis écrit les réponses fraîches en un seul pipeline. Les échecs d'appel ne sont jamais partagés (ils restent locaux dix minutes).
+3. Si Redis est indisponible, la recherche aboutit quand même (un avertissement `[travelpayouts] cache partagé indisponible` dans les logs) ; sans variables, tout reste comme avant.
+
+En local, `vercel env pull .env.local` récupère ces variables si tu veux le même cache qu'en production.
+
+## 7. Plus tard : prix frais à la demande
 
 Pour une recherche vraiment en direct sur quelques trajets (par exemple au moment de réserver), **SerpApi** expose les résultats Google Flights avec 250 recherches gratuites par mois. La variable `SERPAPI_KEY` est prévue dans `.env.example` ; le connecteur n'est pas encore écrit. Les autres pistes (Skyscanner, Kiwi, Booking Demand API) sont réservées aux partenaires sous contrat et ne conviennent pas à un projet solo.

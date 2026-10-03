@@ -55,7 +55,7 @@ docs/           guides (création des comptes API, etc.)
 - **Carte** : contours Natural Earth 110m (domaine public) dessinés en SVG, sans tuiles externes.
 - **Photos** : une image libre par destination, servie par Wikimedia Commons (voir plus bas), avec le paysage SVG généré en repli.
 
-Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.env.example` et `docs/APIS.md`, qui explique pas à pas comment créer le compte Travelpayouts et passer aux prix réels).
+Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.env.example` et `docs/APIS.md`, qui explique pas à pas comment créer le compte Travelpayouts et passer aux prix réels). Les réponses du fournisseur sont gardées 24 h en mémoire et, si un Redis Upstash est configuré (intégration Vercel), partagées entre toutes les instances.
 
 ## Partager et installer
 

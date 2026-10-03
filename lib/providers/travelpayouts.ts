@@ -1,4 +1,5 @@
 import type { DateWindow, Fare } from "@/types";
+import { createSharedCache, type SharedCache } from "../cache";
 import { minutesLabel } from "../format";
 import type { FareQuery, PriceProvider } from "./types";
 
@@ -7,9 +8,12 @@ import type { FareQuery, PriceProvider } from "./types";
  * Endpoint utilisé : GET https://api.travelpayouts.com/aviasales/v3/prices_for_dates
  * Une requête par (aéroport d'origine, destination, mois) en dates flexibles, par (origine, destination, dates) en dates fixes.
  * Les réponses sont gardées 24 h en mémoire (10 min pour un échec), les appels identiques en vol sont dédoublonnés, et le
- * débit est bridé sous la limite de 600 requêtes par minute de l'API.
+ * débit est bridé sous la limite de 600 requêtes par minute de l'API. Avec un cache partagé (lib/cache.ts), les réponses
+ * sont aussi lues et écrites dans Redis : toutes les instances du serveur en profitent pendant 24 h.
  */
 const ENDPOINT = "https://api.travelpayouts.com/aviasales/v3/prices_for_dates";
+/** Préfixe des clés dans le cache partagé ; à changer si la forme des entrées évolue. */
+const SHARED_PREFIX = "tp:v1:";
 const TTL_MS = 24 * 3600 * 1000;
 /** Un appel en erreur (429, panne) n'est pas retenté avant ce délai : la recherche suivante ne relance pas la rafale. */
 const NEG_TTL_MS = 10 * 60 * 1000;
@@ -58,6 +62,8 @@ export interface TravelpayoutsOptions {
   now?: () => number;
   /** Attente (tests : une fonction qui ne dort pas). */
   sleep?: (ms: number) => Promise<void>;
+  /** Cache partagé ; absent : celui de la configuration, null : aucun. */
+  shared?: SharedCache | null;
 }
 
 const cache = new Map<string, { at: number; ttl: number; data: TpItem[] }>();
@@ -109,6 +115,48 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
   const fetchImpl = opts.fetchImpl ?? fetch;
   const now = opts.now ?? Date.now;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const shared = opts.shared === undefined ? createSharedCache() : opts.shared;
+  let sharedWarned = false;
+  /** Le cache partagé ne doit jamais faire échouer une recherche : une panne est signalée une fois, puis ignorée. */
+  const sharedFailed = (e: unknown) => {
+    if (sharedWarned) return;
+    sharedWarned = true;
+    console.warn("[travelpayouts] cache partagé indisponible :", (e as Error).message);
+  };
+  const isFresh = (key: string) => {
+    const hit = cache.get(key);
+    return !!hit && now() - hit.at < hit.ttl;
+  };
+
+  /** Avant les appels : les clés inconnues en mémoire sont lues en une fois dans le cache partagé. */
+  async function warm(tasks: Task[]): Promise<void> {
+    if (!shared) return;
+    const missing = tasks.filter((t) => !isFresh(t.key));
+    if (!missing.length) return;
+    try {
+      const values = await shared.mget(missing.map((t) => SHARED_PREFIX + t.key));
+      values.forEach((v, i) => {
+        if (v == null) return;
+        try {
+          cache.set(missing[i].key, { at: now(), ttl: TTL_MS, data: JSON.parse(v) as TpItem[] });
+        } catch {
+          // Entrée illisible : elle sera simplement rechargée.
+        }
+      });
+    } catch (e) {
+      sharedFailed(e);
+    }
+  }
+
+  /** Après les appels : les réponses fraîches (jamais les échecs) sont écrites en une fois dans le cache partagé. */
+  async function store(fresh: { key: string; data: TpItem[] }[]): Promise<void> {
+    if (!shared || !fresh.length) return;
+    try {
+      await shared.set(fresh.map((f) => ({ key: SHARED_PREFIX + f.key, value: JSON.stringify(f.data), ttlSeconds: TTL_MS / 1000 })));
+    } catch (e) {
+      sharedFailed(e);
+    }
+  }
 
   /** Réserve le prochain créneau d'appel : les appels sont espacés d'au moins MIN_INTERVAL_MS, quel que soit le parallélisme. */
   let nextSlot = 0;
@@ -144,7 +192,7 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
     return Array.isArray(body.data) ? body.data : [];
   }
 
-  async function load(task: Task): Promise<TpItem[]> {
+  async function load(task: Task, fresh: { key: string; data: TpItem[] }[]): Promise<TpItem[]> {
     const hit = cache.get(task.key);
     if (hit && now() - hit.at < hit.ttl) return hit.data;
     if (hit) cache.delete(task.key);
@@ -154,6 +202,7 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
       try {
         const data = compact(await request(task));
         cache.set(task.key, { at: now(), ttl: TTL_MS, data });
+        fresh.push({ key: task.key, data });
         return data;
       } catch (e) {
         cache.set(task.key, { at: now(), ttl: NEG_TTL_MS, data: [] });
@@ -192,14 +241,17 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
       const byWindow = new Map<string, DateWindow>();
       for (const w of q.windows) byWindow.set(`${w.out}|${w.ret}`, w);
       const best = new Map<string, Fare>();
+      await warm(tasks);
+      const fresh: { key: string; data: TpItem[] }[] = [];
       const results = await pool(tasks, CONCURRENCY, async (t) => {
         try {
-          return { t, items: await load(t) };
+          return { t, items: await load(t, fresh) };
         } catch (e) {
           console.warn("[travelpayouts]", (e as Error).message);
           return { t, items: [] as TpItem[] };
         }
       });
+      await store(fresh);
       for (const { t, items } of results) {
         for (const it of items) {
           if (!it.return_at || typeof it.price !== "number") continue;

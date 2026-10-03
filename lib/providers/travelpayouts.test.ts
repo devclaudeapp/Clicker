@@ -94,6 +94,38 @@ describe("fournisseur Travelpayouts", () => {
     expect(fares).toHaveLength(2);
   });
 
+  it("cache partagé : lit avant d'appeler l'API, écrit après, et une autre instance en profite", async () => {
+    const store = new Map<string, string>();
+    const shared = {
+      mget: vi.fn(async (keys: string[]) => keys.map((k) => store.get(k) ?? null)),
+      set: vi.fn(async (entries: { key: string; value: string; ttlSeconds: number }[]) => {
+        for (const e of entries) store.set(e.key, e.value);
+      }),
+    };
+    const calls: string[] = [];
+    const first = createTravelpayoutsProvider({ token: "T", fetchImpl: fakeFetch(calls), sleep: noWait, shared });
+    expect((await first.fares(query)).length).toBe(2);
+    expect(calls).toHaveLength(1);
+    expect(shared.mget).toHaveBeenCalledWith(["tp:v1:LYS|BCN|2026-11"]);
+    expect(shared.set).toHaveBeenCalledTimes(1);
+    expect(shared.set.mock.calls[0][0][0]).toMatchObject({ key: "tp:v1:LYS|BCN|2026-11", ttlSeconds: 86400 });
+    // Nouvelle instance, mémoire vide : la réponse vient du cache partagé, sans appel à l'API.
+    clearTravelpayoutsCache();
+    const second = createTravelpayoutsProvider({ token: "T", fetchImpl: fakeFetch(calls), sleep: noWait, shared });
+    expect((await second.fares(query)).length).toBe(2);
+    expect(calls).toHaveLength(1);
+    expect(shared.set).toHaveBeenCalledTimes(1);
+  });
+
+  it("cache partagé en panne : la recherche aboutit quand même, avec un seul avertissement", async () => {
+    const broken = { mget: vi.fn(async () => { throw new Error("réseau"); }), set: vi.fn(async () => { throw new Error("réseau"); }) };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const p = createTravelpayoutsProvider({ token: "T", fetchImpl: fakeFetch([]), sleep: noWait, shared: broken });
+    expect((await p.fares(query)).length).toBe(2);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
   it("refuse de tourner sans token, et garde un échec en cache dix minutes", async () => {
     await expect(createTravelpayoutsProvider({ token: "", fetchImpl: fakeFetch([]), sleep: noWait }).fares(query)).rejects.toThrow(/TRAVELPAYOUTS_TOKEN/);
     let t = 1_000;
