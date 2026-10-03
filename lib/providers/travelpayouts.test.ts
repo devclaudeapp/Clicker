@@ -126,6 +126,22 @@ describe("fournisseur Travelpayouts", () => {
     warn.mockRestore();
   });
 
+  it("un aéroport inconnu de l'API (400) n'est plus interrogé de la journée, les autres si", async () => {
+    const calls: string[] = [];
+    const flaky = vi.fn(async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return String(url).includes("origin=NCY") ? new Response("", { status: 400 }) : ok();
+    }) as unknown as typeof fetch;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const lis = DESTINATIONS.find((d) => d.id === "lis")!;
+    const p = createTravelpayoutsProvider({ token: "T", fetchImpl: flaky, sleep: noWait });
+    const fares = await p.fares({ ...query, origins: ["NCY", "LYS"], destinations: [bcn, lis] });
+    expect(calls.filter((u) => u.includes("origin=NCY"))).toHaveLength(1);
+    expect(calls.filter((u) => u.includes("origin=LYS"))).toHaveLength(2);
+    expect(fares.every((f) => f.origin === "LYS")).toBe(true);
+    warn.mockRestore();
+  });
+
   it("refuse de tourner sans token, et garde un échec en cache dix minutes", async () => {
     await expect(createTravelpayoutsProvider({ token: "", fetchImpl: fakeFetch([]), sleep: noWait }).fares(query)).rejects.toThrow(/TRAVELPAYOUTS_TOKEN/);
     let t = 1_000;

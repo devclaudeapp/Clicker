@@ -68,6 +68,18 @@ export interface TravelpayoutsOptions {
 
 const cache = new Map<string, { at: number; ttl: number; data: TpItem[] }>();
 const inflight = new Map<string, Promise<TpItem[]>>();
+/** Aéroports d'origine que l'API ne connaît pas (HTTP 400, ex. Annecy) : inutile de les interroger avant demain. */
+const unknownOrigins = new Map<string, number>();
+
+/** Erreur de l'API portant son statut HTTP, pour distinguer un aéroport inconnu d'une panne. */
+class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 const isDirect = (it: TpItem) => (it.transfers ?? 0) === 0 && (it.return_transfers ?? 0) === 0;
 const stopsOf = (it: TpItem) => Math.max(it.transfers ?? 0, it.return_transfers ?? 0);
@@ -187,10 +199,18 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
       await sleep(retryAfterMs(res));
       res = await call();
     }
-    if (!res.ok) throw new Error(`Travelpayouts ${res.status} pour ${task.origin}→${task.destination}`);
+    if (!res.ok) throw new ApiError(res.status, `Travelpayouts ${res.status} pour ${task.origin}→${task.destination}`);
     const body = (await res.json()) as { success?: boolean; data?: TpItem[] };
     return Array.isArray(body.data) ? body.data : [];
   }
+
+  const originKnown = (origin: string) => {
+    const until = unknownOrigins.get(origin);
+    if (until === undefined) return true;
+    if (now() < until) return false;
+    unknownOrigins.delete(origin);
+    return true;
+  };
 
   async function load(task: Task, fresh: { key: string; data: TpItem[] }[]): Promise<TpItem[]> {
     const hit = cache.get(task.key);
@@ -243,13 +263,24 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
       const best = new Map<string, Fare>();
       await warm(tasks);
       const fresh: { key: string; data: TpItem[] }[] = [];
+      // Le premier appel de chaque aéroport d'origine passe seul : s'il est refusé (400, aéroport inconnu de l'API),
+      // les autres destinations de cet aéroport sont abandonnées au lieu d'échouer une à une.
+      const gates = new Map<string, Promise<void>>();
       const results = await pool(tasks, CONCURRENCY, async (t) => {
-        try {
-          return { t, items: await load(t, fresh) };
-        } catch (e) {
-          console.warn("[travelpayouts]", (e as Error).message);
-          return { t, items: [] as TpItem[] };
-        }
+        const gate = gates.get(t.origin);
+        if (gate) await gate;
+        if (!originKnown(t.origin)) return { t, items: [] as TpItem[] };
+        const run = (async () => {
+          try {
+            return { t, items: await load(t, fresh) };
+          } catch (e) {
+            if (e instanceof ApiError && e.status === 400) unknownOrigins.set(t.origin, now() + TTL_MS);
+            console.warn("[travelpayouts]", (e as Error).message);
+            return { t, items: [] as TpItem[] };
+          }
+        })();
+        if (!gate) gates.set(t.origin, run.then(() => undefined));
+        return run;
       });
       await store(fresh);
       for (const { t, items } of results) {
@@ -285,4 +316,5 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
 export function clearTravelpayoutsCache(): void {
   cache.clear();
   inflight.clear();
+  unknownOrigins.clear();
 }
