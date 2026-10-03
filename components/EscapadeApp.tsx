@@ -17,6 +17,7 @@ import { SwipeDeck } from "./results/SwipeDeck";
 import { TripDrawer } from "./results/TripDrawer";
 import { TripGrid } from "./results/TripGrid";
 import { DeparturesDialog } from "./settings/DeparturesDialog";
+import { TabBar } from "./TabBar";
 import { Icon } from "./ui/Icon";
 import { useIsMobile } from "./ui/useMediaQuery";
 import { usePresence } from "./ui/usePresence";
@@ -33,7 +34,6 @@ interface Props {
 type DateForm = Omit<SearchForm, "travelers" | "budget" | "group" | "ages">;
 
 const DURATION_LABEL = { weekend: "ce week-end", long: "ce long week-end", week: "cette semaine" } as const;
-const DURATION_SHORT = { weekend: "week-end", long: "long week-end", week: "semaine" } as const;
 const DURATION_LONG = { weekend: "week-end (2 nuits)", long: "long week-end (3 nuits)", week: "semaine (7 nuits)" } as const;
 const TOAST_MS = 2000;
 
@@ -199,8 +199,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     title = n ? `${n} ${plural(n, "escapade")} dès ${eur(byTotal[0].perPerson)}` : loading ? "Recherche en cours…" : "Aucune escapade";
     subtitle =
       form.dateMode === "flex"
-        ? `${monthOption?.label ?? form.month} · ${DURATION_LONG[form.duration]} · ${prefs.travelers} pers. · dates les moins chères par destination`
-        : `Du ${fmtLong(form.dateOut)} au ${fmtLong(form.dateIn)} · ${prefs.travelers} pers.`;
+        ? `${monthOption?.label ?? form.month} · ${DURATION_LONG[form.duration]} · ${prefs.travelers} pers. · ${eur(prefs.budget)} max par personne · dates les moins chères`
+        : `Du ${fmtLong(form.dateOut)} au ${fmtLong(form.dateIn)} · ${prefs.travelers} pers. · ${eur(prefs.budget)} max par personne`;
     emptyMessage = onlyFavs
       ? "Aucun favori dans ce budget. Garde des destinations avec le cœur ou en swipant à droite."
       : vibes.length
@@ -351,7 +351,6 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   );
 
   const profile = useMemo<TravelProfile>(() => ({ group: prefs.group, ages: prefs.ages, vibes, travelers: prefs.travelers }), [prefs.group, prefs.ages, vibes, prefs.travelers]);
-  const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : fixedOk ? `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}` : "dates à corriger";
   const exiting = (phase: "open" | "exit") => (phase === "exit" ? " is-exiting" : "");
 
   return (
@@ -404,17 +403,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         </div>
       </main>
 
-      <button className={sheetOpen ? "fab glass hide" : "fab glass"} type="button" onClick={openRail} tabIndex={sheetOpen ? -1 : 0} aria-hidden={sheetOpen}>
-        <span className="sum">
-          {depLabels.join(" · ") || "Aucun départ"}{" "}
-          <small>
-            · {fabWhen} · {prefs.travelers} pers. · {eur(prefs.budget)} max
-          </small>
-        </span>
-        <span className="btn sm primary" aria-hidden="true">
-          Modifier
-        </span>
-      </button>
+      {/* Téléphone : barre d'onglets fixe en bas (vues, favoris, recherche) ; masquée sur grand écran par le CSS. */}
+      <TabBar view={view} onView={changeView} onlyFavs={onlyFavs} favCount={prefs.favs.length} onToggleFavs={toggleOnlyFavs} searchOpen={sheetOpen} onSearch={openRail} />
 
       {backdrop.mounted && <div className={`backdrop${exiting(backdrop.phase)}`} onClick={closeTop} />}
       {drawer.mounted && shownTrip && (

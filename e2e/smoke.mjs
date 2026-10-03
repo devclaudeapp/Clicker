@@ -137,7 +137,8 @@ await session("mobile", { width: 390, height: 844 }, async (page) => {
   await waitCards(page);
   check("mobile : pas de débordement horizontal", (await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
   await page.screenshot({ path: join(OUT, "mobile-grille.png") });
-  await page.locator(".fab").click();
+  check("mobile : barre d'onglets visible", await page.locator(".tabbar").isVisible());
+  await page.getByRole("button", { name: "Recherche" }).click();
   await page.waitForTimeout(500);
   check("mobile : feuille de recherche", await page.locator(".rail.open").isVisible());
   await page.screenshot({ path: join(OUT, "mobile-recherche.png") });
@@ -224,9 +225,9 @@ await session("mouvement mobile", { width: 390, height: 844 }, async (page) => {
   };
   await page.goto(BASE, { waitUntil: "networkidle" });
   await waitCards(page);
-  await page.locator(".fab").click();
+  await page.getByRole("button", { name: "Recherche" }).click();
   await page.waitForTimeout(600);
-  check("mobile : le bouton flottant s'efface derrière la feuille", (await page.locator(".fab.hide").count()) === 1);
+  check("mobile : l'onglet Recherche ouvre la feuille", await page.locator(".rail.open").isVisible());
   await dragDown(await page.locator(".rail .sheet-head").first().boundingBox(), 220);
   await page.waitForFunction(() => !document.querySelector(".rail.open"), null, { timeout: 2000 });
   check("mobile : tirer la poignée referme la feuille de recherche", true);
