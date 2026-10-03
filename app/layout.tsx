@@ -3,7 +3,11 @@ import "@fontsource-variable/unbounded";
 import "@fontsource-variable/manrope";
 import "./globals.css";
 
+/** Base des URL absolues (images d'aperçu) : le domaine public en production, Vercel ou localhost sinon. */
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: "Escapade", template: "%s · Escapade" },
   description: "Où partir ce week-end depuis tes villes, au meilleur prix, en dix secondes.",
   applicationName: "Escapade",

@@ -1,13 +1,9 @@
 import type { NextRequest } from "next/server";
 import type { AirportPoint, DeparturePoint, NearbyAirport, SearchParams, TransportMode } from "@/types";
-import { DESTINATIONS } from "@/lib/data/destinations";
-import { buildWindows } from "@/lib/dates";
-import { computeTrips, originsFor } from "@/lib/pricing";
-import { getProvider } from "@/lib/providers";
+import { searchTrips } from "@/lib/search-server";
 
 const MODES: TransportMode[] = ["plane", "train", "bus", "car"];
 const MAX_DEPARTURES = 6;
-const MAX_ORIGINS = 24;
 const isIata = (v: unknown): v is string => typeof v === "string" && /^[A-Z]{3}$/.test(v);
 const text = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -81,16 +77,8 @@ export async function POST(req: NextRequest) {
   if (!params) return Response.json({ error: "Paramètres de recherche invalides." }, { status: 400 });
   if (params.dateMode === "flex" && !params.month) return Response.json({ error: "Mois manquant." }, { status: 400 });
 
-  const windows = buildWindows(params);
-  if (!params.departures.length || !windows.length) return Response.json({ trips: [], windows, provider: null });
-
   try {
-    const provider = getProvider();
-    // Les principaux passent avant les voisins dans originsFor ; le plafond borne les appels aux fournisseurs.
-    const origins = [...originsFor(params).keys()].slice(0, MAX_ORIGINS);
-    const fares = await provider.fares({ origins, destinations: DESTINATIONS, windows, directOnly: params.directOnly });
-    const trips = computeTrips(params, windows, DESTINATIONS, fares);
-    return Response.json({ trips, windows, provider: provider.name });
+    return Response.json(await searchTrips(params));
   } catch (e) {
     console.error("[api/search]", e);
     return Response.json({ error: "Le fournisseur de prix n'a pas répondu." }, { status: 502 });
