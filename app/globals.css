@@ -75,17 +75,23 @@
   .glass { background: var(--glass); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); border: 1px solid var(--line); box-shadow: 0 14px 44px -24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
   .glass-3 { background: var(--glass-3); backdrop-filter: blur(26px) saturate(150%); -webkit-backdrop-filter: blur(26px) saturate(150%); border: 1px solid var(--line); }
 
-  /* En-tête */
-  .top { position: sticky; top: 0; z-index: 30; border-left: 0; border-right: 0; border-top: 0; border-radius: 0; }
-  .top-inner { max-width: 1240px; margin: 0 auto; padding-block: 10px; padding-inline: 16px; display: flex; align-items: center; gap: 12px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 19px; }
-  .brand .mark { width: 34px; height: 34px; border-radius: 11px; background: var(--sunset); color: var(--ink-on-sunset); display: grid; place-items: center; font-size: 17px; box-shadow: 0 8px 20px -8px #ff7a6a; }
+  /* En-tête : pilule flottante en verre, sous la barre d'état du téléphone (zone sûre), compacte au défilement */
+  .top { position: sticky; top: 0; z-index: 30; padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 6px; }
+  /* La bande de la barre d'état reste lisible quand la page défile dessous */
+  .top::before { content: ""; position: absolute; inset: 0 0 auto 0; height: calc(env(safe-area-inset-top, 0px) + 4px); background: rgba(7, 10, 18, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .top-inner { position: relative; max-width: 1240px; margin: 0 auto; padding: 8px 10px 8px 12px; display: flex; align-items: center; gap: 12px; border-radius: 999px; background: rgba(12, 17, 32, 0.6); box-shadow: 0 18px 50px -26px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08); transition: padding var(--dur-2) var(--ease), background var(--dur-2), box-shadow var(--dur-2); }
+  .top.scrolled .top-inner { padding-block: 5px; background: rgba(12, 17, 32, 0.84); box-shadow: 0 14px 40px -22px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 800; font-size: 19px; white-space: nowrap; }
+  .brand .mark { width: 34px; height: 34px; border-radius: 11px; background: var(--sunset); color: var(--ink-on-sunset); display: grid; place-items: center; font-size: 17px; box-shadow: 0 8px 20px -8px #ff7a6a; transition: width var(--dur-2) var(--ease), height var(--dur-2) var(--ease); }
+  .top.scrolled .brand .mark { width: 30px; height: 30px; }
   .pill { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--glass-2); color: var(--muted); white-space: nowrap; }
-  .top nav { margin-left: auto; display: flex; gap: 8px; min-width: 0; }
+  .top nav { margin-left: auto; display: flex; gap: 6px; min-width: 0; }
+  .top nav .btn { border-radius: 999px; max-width: 44vw; }
   /* Le libellé des villes se tronque plutôt que d'élargir la page sur petit écran. */
-  .top nav .btn { max-width: 44vw; }
   .top nav .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .top nav .num { display: inline-block; animation: bump var(--dur-2) var(--ease-out); }
+  /* Compteur de favoris en badge : discret à zéro, solaire sinon ; il rebondit à chaque changement */
+  .top nav .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; font-size: 12px; font-weight: 800; background: var(--glass-2); color: var(--muted); animation: bump var(--dur-2) var(--ease-out); }
+  .top nav .count.on { background: var(--sunset); color: var(--ink-on-sunset); }
   @keyframes bump { 0% { transform: scale(0.6); } 60% { transform: scale(1.25); } 100% { transform: none; } }
 
   /* Boutons et champs */
@@ -142,7 +148,7 @@
   .hero h1 { font-size: clamp(26px, 4.2vw, 46px); font-weight: 800; max-width: 16ch; }
   .hero-sub { color: var(--muted); font-size: 16px; max-width: 60ch; }
   .cols { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 22px; align-items: start; }
-  .rail { position: sticky; top: 68px; max-height: calc(100vh - 90px); overflow: auto; border-radius: var(--r); padding: 18px; display: grid; gap: 18px; }
+  .rail { position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow: auto; border-radius: var(--r); padding: 18px; display: grid; gap: 18px; }
   .sheet-head { display: none; }
   .fab { display: none; }
 
@@ -350,7 +356,7 @@
   .plan-wait { gap: 10px; }
   .plan-wait .sk { display: block; height: 14px; border-radius: 7px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.06) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
   .plan-wait .sk.short { width: 55%; }
-  .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
+  .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
   .modal.is-exiting { pointer-events: none; }
   .modal-box { border-radius: var(--r); width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 20px; display: grid; gap: 18px; animation: modalIn var(--dur-2) var(--ease-out); }
   .modal.is-exiting .modal-box { animation: modalOut var(--dur-2) var(--ease-in) forwards; }
@@ -377,6 +383,9 @@
 
 @media (max-width: 600px) {
   .top .pill { display: none; }
+  .top { padding-inline: 8px; }
+  .top-inner { gap: 8px; }
+  .brand { font-size: 17px; }
 }
 
 /* Téléphone : le rail devient une feuille du bas, le détail aussi */
