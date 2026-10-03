@@ -23,6 +23,7 @@ Scripts :
 | `npm test` | tests unitaires (vitest, fichiers `lib/**/*.test.ts`) |
 | `npm run e2e [-- http://localhost:3000]` | scénario de fumée dans Chromium contre un serveur qui tourne : bureau, mobile, lien partagé, captures dans `e2e/out/` (une fois : `npx playwright install chromium`) |
 | `npm run build:airports -- chemin/airports.csv` | régénère `lib/data/airports.json` depuis le CSV OurAirports |
+| `npm run build:flixbus` | régénère `lib/data/flixbus.ts` (identifiants de villes FlixBus) depuis l'autocomplétion publique du site |
 | `npm run build:icons` | régénère les icônes PNG de `public/icons/` depuis `app/icon.svg` |
 
 La CI GitHub Actions (`.github/workflows/ci.yml`) rejoue lint, types, tests et build à chaque push.
@@ -48,7 +49,7 @@ docs/           guides (création des comptes API, etc.)
 ## Données et sources de prix
 
 - **Vols** : Travelpayouts / Aviasales Data API (gratuit, prix en cache actualisés toutes les 48 h). Amadeus Self-Service a fermé le 17 juillet 2026 et n'est plus une option. Par défaut l'app tourne en mode `mock` avec des prix fictifs cohérents.
-- **Train, bus, covoiturage, hébergement** : pas d'API gratuite ; l'app construit des liens pré-remplis (SNCF Connect, BlaBlaCar, FlixBus, Booking, Airbnb, Google Flights, Skyscanner, Kayak, Rome2Rio) et affiche des estimations.
+- **Train, bus, covoiturage, hébergement** : pas d'API gratuite ; l'app construit des liens pré-remplis (SNCF Connect, Trainline, BlaBlaCar, FlixBus, Booking, Airbnb, Google Flights, Skyscanner, Kayak, Rome2Rio) et affiche des estimations. Les formats sont dans `lib/links.ts`, vérifiés dans un vrai navigateur (villes, dates et voyageurs pré-remplis) ; limites connues : SNCF Connect et Trainline ne lisent pas le nombre de voyageurs dans l'URL. FlixBus veut l'identifiant de chaque ville : `lib/data/flixbus.ts` les embarque pour les villes de départ et les destinations connues (`npm run build:flixbus` les régénère).
 - **Aéroports** : OurAirports (domaine public), filtrés sur l'Europe, le Maghreb et le Proche-Orient.
 - **Carte** : contours Natural Earth 110m (domaine public) dessinés en SVG, sans tuiles externes.
 

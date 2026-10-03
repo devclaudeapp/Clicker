@@ -19,7 +19,8 @@ const check = (label, ok, detail = "") => {
 };
 
 async function session(name, viewport, steps) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: viewport.width < 600, isMobile: viewport.width < 600, locale: "fr-FR", reducedMotion: "reduce" });
+  const mobile = viewport.width < 600;
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: mobile, isMobile: mobile, locale: "fr-FR", reducedMotion: "reduce", permissions: ["clipboard-read", "clipboard-write"] });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`[${name}] erreur de page : ${e.message}`));
   page.on("console", (m) => {
@@ -46,8 +47,11 @@ await session("bureau", { width: 1360, height: 900 }, async (page) => {
 
   await page.locator(".card .btn").first().click();
   await page.waitForSelector(".drawer");
-  const links = await page.locator(".drawer a[href^='https://']").count();
-  check("fiche : liens de réservation", links >= 8, `${links} liens`);
+  const links = await page.locator(".drawer a[href^='https://']").evaluateAll((as) => as.map((a) => [a.textContent.trim(), a.href]));
+  check("fiche : liens de réservation", links.length >= 12, `${links.length} liens`);
+  // Formats vérifiés à la main dans un navigateur : voir lib/links.ts.
+  const linkIs = (label, re) => links.some(([t, h]) => t.includes(label) && re.test(h));
+  check("fiche : formats des liens", linkIs("Google Flights", /\?tfs=[A-Za-z0-9%]+&hl=fr/) && linkIs("Trainline", /trainline\.fr\/search\/[a-z-]+\/[a-z-]+\/\d{4}-\d\d-\d\d\/\d{4}-\d\d-\d\d$/) && linkIs("FlixBus", /shop\.flixbus\.fr\/search\?.*rideDate=\d\d\.\d\d\.\d{4}&backRideDate=.*&adult=\d/) && linkIs("Aviasales", /currency=eur/));
   await page.waitForSelector(".drawer .plan .day", { timeout: 10000 });
   const days = await page.locator(".drawer .plan .day").count();
   const acts = await page.locator(".drawer .plan .days .act:not(.free)").count();
@@ -108,6 +112,18 @@ await session("partage", { width: 1360, height: 900 }, async (page) => {
   await page.locator('.stepper button[aria-label="Un voyageur de plus"]').click();
   await page.waitForTimeout(600);
   check("l'adresse suit la recherche", (await page.evaluate(() => location.search)).includes("t=4"));
+
+  // « Partager » copie un lien ; ouvert dans un contexte vierge (fenêtre privée), il rejoue la recherche à l'identique.
+  await page.getByRole("button", { name: "Partager" }).click();
+  await page.waitForTimeout(300);
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const fresh = await browser.newContext({ viewport: { width: 1360, height: 900 }, locale: "fr-FR" });
+  const replay = await fresh.newPage();
+  await replay.goto(copied, { waitUntil: "networkidle" });
+  await replay.waitForSelector(".map .mk", { timeout: 20000 });
+  await replay.waitForTimeout(600);
+  check("lien copié : rejoué à l'identique", copied.startsWith(`${BASE}/?`) && new URL(copied).search === (await replay.evaluate(() => location.search)), new URL(copied).search);
+  await fresh.close();
 });
 
 await session("mobile", { width: 390, height: 844 }, async (page) => {
@@ -120,9 +136,44 @@ await session("mobile", { width: 390, height: 844 }, async (page) => {
   check("mobile : feuille de recherche", await page.locator(".rail.open").isVisible());
   await page.screenshot({ path: join(OUT, "mobile-recherche.png") });
   await page.locator(".rail .close").first().click();
+  await page.waitForTimeout(400);
+
+  // Gestes tactiles réels (protocole Chrome) : swipe d'une carte, pincement sur la carte.
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, touchPoints) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  await page.getByRole("button", { name: "Swipe" }).click();
+  await page.waitForSelector(".sc");
+  await page.locator(".sc").first().scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const card = await page.locator(".sc").first().boundingBox();
+  const cx = card.x + card.width / 2;
+  const cy = card.y + card.height / 2;
+  await touch("touchStart", [{ x: cx, y: cy }]);
+  for (let i = 1; i <= 10; i++) await touch("touchMove", [{ x: cx + i * 22, y: cy }]);
+  await touch("touchEnd", []);
+  await page.waitForTimeout(700);
+  check("mobile : swipe tactile vers la droite = favori", (await page.locator("header nav .num").first().innerText()) === "1");
+
+  await page.getByRole("button", { name: "Carte" }).click();
+  await page.waitForSelector(".map .mk");
+  const map = await page.locator(".map").boundingBox();
+  const mx = map.x + map.width / 2;
+  const my = map.y + map.height / 2;
+  const viewWidth = async () => Number((await page.locator(".map").getAttribute("viewBox")).split(/\s+/)[2]);
+  const before = await viewWidth();
+  await touch("touchStart", [{ x: mx - 20, y: my }, { x: mx + 20, y: my }]);
+  for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x: mx - 20 - i * 12, y: my }, { x: mx + 20 + i * 12, y: my }]);
+  await touch("touchEnd", []);
+  await page.waitForTimeout(400);
+  check("mobile : pincement = zoom de la carte", (await viewWidth()) < before);
+
+  await page.getByRole("button", { name: "Grille" }).click();
   await page.locator(".card .btn").first().click();
   await page.waitForSelector(".drawer");
   await page.waitForTimeout(400);
+  const drawer = await page.locator(".drawer").boundingBox();
+  check("mobile : fiche en feuille du bas", drawer.y > 20 && Math.round(drawer.width) === 390 && Math.abs(drawer.y + drawer.height - 844) < 2);
+  check("mobile : pas de débordement (fiche)", (await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
   await page.screenshot({ path: join(OUT, "mobile-fiche.png") });
 });
 
