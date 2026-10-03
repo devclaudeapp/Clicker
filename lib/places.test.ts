@@ -9,6 +9,8 @@ describe("resolveDeparture", () => {
     expect(p!.airports).toEqual(expect.arrayContaining(["CDG", "ORY"]));
     expect(p!.nearby.map((n) => n.iata)).toContain("BVA");
     expect(p!.stations).toContain("Paris Gare de Lyon");
+    expect(p!.points.CDG).toMatchObject({ name: "Paris Charles-de-Gaulle", city: "Paris" });
+    expect(p!.points.BVA.lat).toBeCloseTo(49.45, 1);
   });
   it("Lyon : Saint-Exupéry principal, Genève, Grenoble et Chambéry à ~2 h", () => {
     const p = resolveDeparture("lyon")!;

@@ -1,5 +1,4 @@
 import type { DateWindow, Destination, Fare, SearchParams, SortKey, TransportCandidate, TripOption, VibeId } from "@/types";
-import { AIRPORT_BY_IATA } from "./places";
 
 /** Coefficient saisonnier par mois calendaire (janvier → décembre), appliqué aux vols et, atténué, aux nuits. */
 export const SEASON = [0.88, 0.95, 0.94, 1.05, 1.05, 1.12, 1.3, 1.3, 1.05, 0.98, 1.0, 1.28];
@@ -21,8 +20,8 @@ export function originsFor(p: Pick<SearchParams, "departures" | "includeNearby" 
   const excluded = new Set(p.excludedNearby);
   for (const dep of p.departures) {
     for (const code of dep.airports) {
-      const a = AIRPORT_BY_IATA.get(code);
-      m.set(code, { depId: dep.id, nearby: false, label: a?.name ?? code, city: a?.city ?? dep.label });
+      const pt = dep.points?.[code];
+      m.set(code, { depId: dep.id, nearby: false, label: pt?.name ?? code, city: pt?.city ?? dep.label });
     }
   }
   if (p.includeNearby) {
@@ -113,10 +112,10 @@ export const matchesVibes = (trip: TripOption, vibes: VibeId[]): boolean => vibe
 /** Point de départ réel du meilleur transport : l'aéroport utilisé (voisin compris) ou la ville pour le terrestre. */
 export function originOf(trip: TripOption, departures: Pick<SearchParams, "departures">["departures"]): { lat: number; lon: number; label: string; ground: boolean } {
   const b = trip.best;
-  if (b.mode === "plane" && b.origin) {
-    const a = AIRPORT_BY_IATA.get(b.origin);
-    if (a) return { lat: a.lat, lon: a.lon, label: `${a.city} (${a.iata})`, ground: false };
-  }
   const dep = departures.find((d) => d.id === b.depId) ?? departures[0];
-  return { lat: dep.lat, lon: dep.lon, label: dep.label, ground: true };
+  if (b.mode === "plane" && b.origin) {
+    const pt = dep?.points?.[b.origin] ?? departures.map((d) => d.points?.[b.origin!]).find(Boolean);
+    if (pt) return { lat: pt.lat, lon: pt.lon, label: `${pt.city} (${b.origin})`, ground: false };
+  }
+  return { lat: dep.lat, lon: dep.lon, label: dep.label, ground: b.mode !== "plane" };
 }

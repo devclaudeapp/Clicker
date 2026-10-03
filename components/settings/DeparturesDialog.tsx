@@ -20,7 +20,8 @@ interface Suggestion {
 /** Villes de départ : aéroports principaux, voisins à ~2 h (cochables), gares ; ajout d'une ville par recherche. */
 export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemove, onAdd, onClose }: Props) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  // Les suggestions sont marquées de la saisie qui les a produites : on n'affiche jamais celles d'une saisie précédente.
+  const [suggestions, setSuggestions] = useState<{ q: string; items: Suggestion[] }>({ q: "", items: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -30,37 +31,37 @@ export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemo
   }, []);
 
   // Suggestions au fil de la saisie, avec un léger délai ; sous deux caractères on n'affiche rien.
-  const visible = query.trim().length < 2 ? [] : suggestions;
+  const q = query.trim();
+  const visible = q.length >= 2 && suggestions.q === q ? suggestions.items : [];
   useEffect(() => {
-    if (query.trim().length < 2) return;
+    if (q.length < 2) return;
     const ctrl = new AbortController();
     const t = window.setTimeout(() => {
-      fetch(`/api/places?q=${encodeURIComponent(query.trim())}`, { signal: ctrl.signal })
+      fetch(`/api/places?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then((r) => r.json())
-        .then((data: { suggestions: Suggestion[] }) => setSuggestions(data.suggestions))
+        .then((data: { suggestions: Suggestion[] }) => setSuggestions({ q, items: data.suggestions }))
         .catch(() => {});
     }, 120);
     return () => {
       window.clearTimeout(t);
       ctrl.abort();
     };
-  }, [query]);
+  }, [q]);
 
   const add = async (name: string) => {
-    const q = name.trim();
-    if (!q) return;
+    const wanted = name.trim();
+    if (!wanted || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(`/api/places?resolve=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/places?resolve=${encodeURIComponent(wanted)}`);
       if (!r.ok) throw new Error("introuvable");
       const data: { departure: DeparturePoint } = await r.json();
       if (saved.some((d) => d.id === data.departure.id)) setError(`${data.departure.label} est déjà dans la liste.`);
       else onAdd(data.departure);
       setQuery("");
-      setSuggestions([]);
     } catch {
-      setError(`Je ne connais pas « ${q} ». Essaie une grande ville ou une ville avec aéroport.`);
+      setError(`Je ne connais pas « ${wanted} ». Essaie une grande ville ou une ville avec aéroport.`);
     } finally {
       setBusy(false);
     }
@@ -146,7 +147,7 @@ export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemo
           {visible.length > 0 && (
             <div className="chips">
               {visible.map((s) => (
-                <button key={s.label} className="chip" type="button" onClick={() => add(s.label)}>
+                <button key={s.label} className="chip" type="button" disabled={busy} onClick={() => add(s.label)}>
                   {s.label} <small className="hint">{s.country}</small>
                 </button>
               ))}

@@ -18,6 +18,14 @@ export interface NearbyAirport {
   minutes: number;
 }
 
+/** Nom, ville et position d'un aéroport cité par une ville de départ. */
+export interface AirportPoint {
+  name: string;
+  city: string;
+  lat: number;
+  lon: number;
+}
+
 /** Ville de départ résolue : ses aéroports principaux, ses gares, et les aéroports à ~2 h. */
 export interface DeparturePoint {
   id: string;
@@ -28,6 +36,8 @@ export interface DeparturePoint {
   airports: string[];
   stations: string[];
   nearby: NearbyAirport[];
+  /** Détail de chaque aéroport cité (principaux et voisins), par code IATA : évite d'embarquer le jeu complet côté client. */
+  points: Record<string, AirportPoint>;
 }
 
 export type TransportMode = "plane" | "train" | "bus" | "car";

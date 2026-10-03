@@ -1,4 +1,4 @@
-import type { Airport, DeparturePoint, NearbyAirport } from "@/types";
+import type { Airport, AirportPoint, DeparturePoint, NearbyAirport } from "@/types";
 import airportsJson from "./data/airports.json";
 import { CITIES, type City } from "./data/cities";
 import { accessMinutes, haversineKm } from "./geo";
@@ -58,9 +58,11 @@ export function suggestCities(query: string, limit = 8): CitySuggestion[] {
 export function departureFromCity(city: City): DeparturePoint {
   const main: string[] = [];
   const nearby: NearbyAirport[] = [];
+  const points: Record<string, AirportPoint> = {};
   for (const a of AIRPORTS) {
     const km = haversineKm(city, a);
     if (km > NEARBY_KM) continue;
+    points[a.iata] = { name: a.name, city: a.city, lat: a.lat, lon: a.lon };
     // Principal : il dessert la ville elle-même, ou c'est un grand aéroport tout proche (Orly pour Paris).
     const sameCity = norm(a.city) === norm(city.label) || norm(a.city) === norm(city.en);
     if (sameCity || (km <= MAIN_KM && a.size === "L")) main.push(a.iata);
@@ -69,7 +71,7 @@ export function departureFromCity(city: City): DeparturePoint {
   // Les gros aéroports d'abord parmi les principaux, puis les plus proches parmi les voisins.
   main.sort((x, y) => (AIRPORT_BY_IATA.get(y)?.size === "L" ? 1 : 0) - (AIRPORT_BY_IATA.get(x)?.size === "L" ? 1 : 0));
   nearby.sort((x, y) => x.km - y.km);
-  return { id: slugify(city.label), label: city.label, en: city.en, lat: city.lat, lon: city.lon, airports: main, stations: city.stations, nearby };
+  return { id: slugify(city.label), label: city.label, en: city.en, lat: city.lat, lon: city.lon, airports: main, stations: city.stations, nearby, points };
 }
 
 /**

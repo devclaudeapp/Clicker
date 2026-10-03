@@ -22,6 +22,31 @@ export const defaultPrefs = (departures: DeparturePoint[]): Prefs => ({
   budget: 400,
 });
 
+const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
+const inRange = (v: unknown, min: number, max: number): number | undefined => (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
+
+/**
+ * Rend un objet de réglages complet à partir d'une valeur stockée, quelle que soit sa forme :
+ * champ manquant ou mal typé → valeur par défaut. Rend null si rien d'exploitable n'est stocké.
+ */
+export function normalizePrefs(stored: unknown, defaults: Prefs): Prefs | null {
+  if (!stored || typeof stored !== "object") return null;
+  const s = stored as Record<string, unknown>;
+  const saved = Array.isArray(s.saved) ? (s.saved.filter((d) => d && typeof d === "object" && typeof (d as DeparturePoint).id === "string") as DeparturePoint[]) : [];
+  if (!saved.length) return null;
+  const ids = new Set(saved.map((d) => d.id));
+  const activeIds = (strings(s.activeIds) ?? defaults.activeIds).filter((id) => ids.has(id));
+  return {
+    saved,
+    activeIds: activeIds.length ? activeIds : saved.map((d) => d.id),
+    includeNearby: typeof s.includeNearby === "boolean" ? s.includeNearby : defaults.includeNearby,
+    excludedNearby: strings(s.excludedNearby) ?? defaults.excludedNearby,
+    favs: strings(s.favs) ?? defaults.favs,
+    travelers: inRange(s.travelers, 1, 8) ?? defaults.travelers,
+    budget: inRange(s.budget, 100, 1000) ?? defaults.budget,
+  };
+}
+
 /**
  * Store externe minimal au-dessus de lib/storage, consommé via useSyncExternalStore :
  * le rendu serveur ne connaît pas les réglages (snapshot null), le client les lit une fois puis
@@ -29,21 +54,14 @@ export const defaultPrefs = (departures: DeparturePoint[]): Prefs => ({
  */
 const KEY = "prefs";
 const listeners = new Set<() => void>();
-let current: Prefs | null | undefined;
+let current: unknown = undefined;
 
-function isPrefs(v: unknown): v is Prefs {
-  return !!v && typeof v === "object" && Array.isArray((v as Prefs).saved) && (v as Prefs).saved.length > 0;
-}
-
-export function getPrefsSnapshot(): Prefs | null {
-  if (current === undefined) {
-    const stored = localStore.get<unknown>(KEY, null);
-    current = isPrefs(stored) ? stored : null;
-  }
+export function getPrefsSnapshot(): unknown {
+  if (current === undefined) current = localStore.get<unknown>(KEY, null);
   return current;
 }
 
-export const getServerPrefsSnapshot = (): Prefs | null => null;
+export const getServerPrefsSnapshot = (): unknown => null;
 
 export function subscribePrefs(cb: () => void): () => void {
   listeners.add(cb);
@@ -53,7 +71,7 @@ export function subscribePrefs(cb: () => void): () => void {
 }
 
 export function updatePrefs(update: (p: Prefs) => Prefs, fallback: Prefs): void {
-  current = update(getPrefsSnapshot() ?? fallback);
+  current = update(normalizePrefs(getPrefsSnapshot(), fallback) ?? fallback);
   localStore.set(KEY, current);
   listeners.forEach((l) => l());
 }

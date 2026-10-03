@@ -1,4 +1,5 @@
 import type { DateWindow, Fare } from "@/types";
+import { minutesLabel } from "../format";
 import type { FareQuery, PriceProvider } from "./types";
 
 /**
@@ -52,11 +53,24 @@ export interface TravelpayoutsOptions {
 const cache = new Map<string, { at: number; data: TpItem[] }>();
 const inflight = new Map<string, Promise<TpItem[]>>();
 
-const minutesLabel = (min: number) => {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return h ? `${h} h${m ? ` ${String(m).padStart(2, "0")}` : ""}` : `${m} min`;
-};
+const isDirect = (it: TpItem) => (it.transfers ?? 0) === 0 && (it.return_transfers ?? 0) === 0;
+
+/**
+ * Ne garde, par couple de dates (aller, retour), que le tarif le moins cher et le direct le moins cher :
+ * c'est tout ce dont le moteur a besoin, et le cache reste léger (quelques dizaines d'entrées par mois au lieu de mille).
+ */
+function compact(items: TpItem[]): TpItem[] {
+  const best = new Map<string, TpItem>();
+  for (const it of items) {
+    if (!it.return_at || typeof it.price !== "number") continue;
+    const pair = `${it.departure_at.slice(0, 10)}|${it.return_at.slice(0, 10)}`;
+    for (const k of isDirect(it) ? [pair, `${pair}|d`] : [pair]) {
+      const prev = best.get(k);
+      if (!prev || it.price < prev.price) best.set(k, it);
+    }
+  }
+  return [...new Set(best.values())];
+}
 
 /** Exécute les tâches par lots pour rester loin de la limite de 600 requêtes par minute. */
 async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -81,6 +95,7 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
   async function load(task: Task): Promise<TpItem[]> {
     const hit = cache.get(task.key);
     if (hit && now() - hit.at < TTL_MS) return hit.data;
+    if (hit) cache.delete(task.key);
     const pending = inflight.get(task.key);
     if (pending) return pending;
     const p = (async () => {
@@ -88,7 +103,7 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
       const res = await fetchImpl(url, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!res.ok) throw new Error(`Travelpayouts ${res.status} pour ${task.origin}→${task.destination}`);
       const body = (await res.json()) as { success?: boolean; data?: TpItem[] };
-      const data = Array.isArray(body.data) ? body.data : [];
+      const data = compact(Array.isArray(body.data) ? body.data : []);
       cache.set(task.key, { at: now(), data });
       return data;
     })();
@@ -137,7 +152,7 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
           if (!it.return_at || typeof it.price !== "number") continue;
           const w = byWindow.get(`${it.departure_at.slice(0, 10)}|${it.return_at.slice(0, 10)}`);
           if (!w) continue;
-          const direct = (it.transfers ?? 0) === 0 && (it.return_transfers ?? 0) === 0;
+          const direct = isDirect(it);
           if (q.directOnly && !direct) continue;
           const key = `${t.origin}|${t.destId}|${w.key}`;
           const prev = best.get(key);

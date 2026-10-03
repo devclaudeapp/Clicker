@@ -12,8 +12,12 @@ export const addDays = (d: Date, n: number): Date => {
 
 const SHORT: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" };
 const LONG: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" };
-export const fmtShort = (iso: string): string => parseISO(iso).toLocaleDateString("fr-FR", SHORT);
-export const fmtLong = (iso: string): string => parseISO(iso).toLocaleDateString("fr-FR", LONG);
+const safe = (iso: string, opts: Intl.DateTimeFormatOptions): string => {
+  const d = parseISO(iso);
+  return Number.isNaN(d.getTime()) ? "date ?" : d.toLocaleDateString("fr-FR", opts);
+};
+export const fmtShort = (iso: string): string => safe(iso, SHORT);
+export const fmtLong = (iso: string): string => safe(iso, LONG);
 
 /** « Lyon, Genève et Paris ». */
 export const listFr = (items: string[]): string =>

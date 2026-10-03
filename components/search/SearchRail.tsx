@@ -20,6 +20,8 @@ interface Props {
   form: SearchForm;
   onChange: (patch: Partial<SearchForm>) => void;
   months: MonthOption[];
+  /** Premier jour de départ acceptable (demain), pour les champs de dates fixes. */
+  minDate: string;
   saved: DeparturePoint[];
   activeIds: string[];
   onToggleDeparture: (id: string) => void;
@@ -37,7 +39,7 @@ const TRANSPORTS: { mode: TransportMode; label: string }[] = [
   { mode: "car", label: "Covoit'" },
 ];
 
-export function SearchRail({ form, onChange, months, saved, activeIds, onToggleDeparture, includeNearby, onIncludeNearby, nearbyInfo, open, onClose }: Props) {
+export function SearchRail({ form, onChange, months, minDate, saved, activeIds, onToggleDeparture, includeNearby, onIncludeNearby, nearbyInfo, open, onClose }: Props) {
   const pct = ((form.budget - 100) / 900) * 100;
   return (
     <aside className={open ? "rail glass open" : "rail glass"} aria-label="Recherche">
@@ -100,8 +102,8 @@ export function SearchRail({ form, onChange, months, saved, activeIds, onToggleD
           </div>
         ) : (
           <div className="row">
-            <input className="input" type="date" id="date-out" aria-label="Date de départ" value={form.dateOut} onChange={(e) => onChange({ dateOut: e.target.value })} />
-            <input className="input" type="date" id="date-in" aria-label="Date de retour" value={form.dateIn} onChange={(e) => onChange({ dateIn: e.target.value })} />
+            <input className="input" type="date" id="date-out" aria-label="Date de départ" min={minDate} value={form.dateOut} onChange={(e) => onChange({ dateOut: e.target.value })} />
+            <input className="input" type="date" id="date-in" aria-label="Date de retour" min={form.dateOut || minDate} value={form.dateIn} onChange={(e) => onChange({ dateIn: e.target.value })} />
           </div>
         )}
         <p className="hint">{form.dateMode === "flex" ? "On retient les dates les moins chères du mois, pour chaque destination." : "Prix pour ces dates précises."}</p>

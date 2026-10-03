@@ -45,6 +45,18 @@ function hillsPath(horizon: number, minH: number, varH: number, r: (k: string) =
   return `${p} L${SW},${horizon} Z`;
 }
 
+const SCENE_CACHE = new Map<string, string>();
+
+/** Paysage d'une destination, calculé une fois par identifiant puis réutilisé (cartes, fiche, carte, aperçu). */
+export function sceneFor(d: Destination): string {
+  let s = SCENE_CACHE.get(d.id);
+  if (!s) {
+    s = sceneSVG(d);
+    SCENE_CACHE.set(d.id, s);
+  }
+  return s;
+}
+
 /**
  * Paysage illustré d'une destination, en SVG (320 × 180, étiré en « cover »).
  * Déterministe : la même destination donne toujours la même image.

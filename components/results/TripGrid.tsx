@@ -11,7 +11,15 @@ interface Props {
   onFav: (id: string) => void;
 }
 
-const canHover = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Les requêtes média sont créées une fois ; seule leur valeur est relue à chaque mouvement.
+let hoverQuery: MediaQueryList | null = null;
+let motionQuery: MediaQueryList | null = null;
+const canHover = () => {
+  if (typeof window === "undefined") return false;
+  hoverQuery ??= window.matchMedia("(hover: hover) and (pointer: fine)");
+  motionQuery ??= window.matchMedia("(prefers-reduced-motion: reduce)");
+  return hoverQuery.matches && !motionQuery.matches;
+};
 
 /** Grille de cartes ; au survol à la souris, la carte s'incline légèrement et un halo suit le curseur. */
 export function TripGrid({ trips, bestId, favs, emptyMessage, onOpen, onFav }: Props) {

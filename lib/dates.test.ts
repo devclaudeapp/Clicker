@@ -25,10 +25,15 @@ describe("buildWindows", () => {
     expect(w[0].key).toBe("2026-11|2");
   });
   it("dates fixes cohérentes → une fenêtre, incohérentes → aucune", () => {
-    expect(buildWindows({ ...base, dateMode: "fixed", duration: "weekend", dateOut: "2026-11-14", dateIn: "2026-11-16" })).toEqual([
+    expect(buildWindows({ ...base, dateMode: "fixed", duration: "weekend", dateOut: "2026-11-14", dateIn: "2026-11-16" }, today)).toEqual([
       { out: "2026-11-14", ret: "2026-11-16", nights: 2, monthIndex: 10, key: "2026-11-14" },
     ]);
-    expect(buildWindows({ ...base, dateMode: "fixed", duration: "weekend", dateOut: "2026-11-16", dateIn: "2026-11-14" })).toEqual([]);
+    const fixed = (dateOut: string, dateIn: string) => buildWindows({ ...base, dateMode: "fixed", duration: "weekend", dateOut, dateIn }, today);
+    expect(fixed("2026-11-16", "2026-11-14")).toEqual([]);
+    expect(fixed("2026-02-31", "2026-03-05")).toEqual([]);
+    expect(fixed("2026-09-10", "2026-09-12")).toEqual([]);
+    expect(fixed("2026-11-14", "2027-01-14")).toEqual([]);
+    expect(fixed("", "2026-11-16")).toEqual([]);
   });
 });
 

@@ -21,6 +21,13 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Premier jour de départ acceptable : demain. */
 export const earliestDeparture = (today = new Date()): string => toISO(addDays(today, 1));
 
+/** Vrai pour une date « YYYY-MM-DD » qui existe réellement. */
+export const isValidISO = (s: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = parseISO(s);
+  return !Number.isNaN(d.getTime()) && toISO(d) === s;
+};
+
 /** Les prochains mois à proposer, en commençant par le mois courant s'il lui reste un vendredi à venir. */
 export function nextMonths(count = 6, from = new Date()): MonthOption[] {
   const out: MonthOption[] = [];
@@ -66,11 +73,12 @@ export const NIGHTS: Record<DurationPreset, number> = { weekend: 2, long: 3, wee
  */
 export function buildWindows(p: Pick<SearchParams, "dateMode" | "month" | "duration" | "dateOut" | "dateIn">, today = new Date()): DateWindow[] {
   if (p.dateMode === "fixed") {
-    if (!p.dateOut || !p.dateIn) return [];
+    // Les deux dates doivent exister dans le calendrier (le 31 février est refusé) et le départ ne peut pas être passé.
+    if (!isValidISO(p.dateOut) || !isValidISO(p.dateIn) || p.dateOut < earliestDeparture(today)) return [];
     const out = parseISO(p.dateOut);
     const ret = parseISO(p.dateIn);
     const nights = Math.round((ret.getTime() - out.getTime()) / 86400000);
-    if (!(nights > 0) || Number.isNaN(nights)) return [];
+    if (!(nights > 0) || nights > 30) return [];
     return [{ out: p.dateOut, ret: p.dateIn, nights, monthIndex: out.getUTCMonth(), key: p.dateOut }];
   }
   const nights = NIGHTS[p.duration];

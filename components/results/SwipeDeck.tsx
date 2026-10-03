@@ -10,6 +10,8 @@ interface Props {
   swiped: string[];
   favCount: number;
   emptyMessage: string;
+  /** Faux quand une fiche ou un dialogue est ouvert par-dessus : les flèches du clavier ne swipent plus. */
+  enabled: boolean;
   onDecide: (id: string, dir: "left" | "right") => void;
   onOpen: (id: string) => void;
   onReset: () => void;
@@ -19,7 +21,7 @@ const THRESHOLD = 110;
 const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Pile de cartes à glisser : à droite on garde (favori), à gauche on passe. Flèches du clavier aussi. */
-export function SwipeDeck({ trips, swiped, favCount, emptyMessage, onDecide, onOpen, onReset }: Props) {
+export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDecide, onOpen, onReset }: Props) {
   const remaining = trips.filter((t) => !swiped.includes(t.destination.id));
   const top = remaining.slice(0, 3);
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
@@ -40,7 +42,7 @@ export function SwipeDeck({ trips, swiped, favCount, emptyMessage, onDecide, onO
 
   // Flèches du clavier : l'écouteur est posé une fois, mais lit toujours la carte du dessus courante.
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if ((e.target as HTMLElement | null)?.closest("input,select,textarea")) return;
+    if (!enabled || (e.target as HTMLElement | null)?.closest("input,select,textarea")) return;
     if (e.key === "ArrowRight") {
       e.preventDefault();
       decide("right");

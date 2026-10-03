@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { DeparturePoint, TripOption } from "@/types";
+import type { DeparturePoint, TransportCandidate, TripOption } from "@/types";
 import { eur, fmtLong, fmtShort, minutesLabel } from "@/lib/format";
 import { haversineKm } from "@/lib/geo";
 import { LINKS } from "@/lib/links";
@@ -38,6 +38,8 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
   const km = Math.round(haversineKm(o, d));
   const flights = trip.candidates.filter((c) => c.mode === "plane");
   const ground = trip.candidates.filter((c) => c.mode !== "plane");
+  // Les objets viennent du JSON de l'API : on reconnaît le transport retenu par ses clés, pas par identité.
+  const isBest = (c: TransportCandidate) => c.mode === trip.best.mode && c.depId === trip.best.depId && c.origin === trip.best.origin;
   const closeRef = useRef<HTMLButtonElement>(null);
   const firstDep = departures[0];
 
@@ -140,7 +142,7 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
           </h3>
           {flights.length ? (
             flights.map((f, i) => (
-              <div key={f.origin} className={f === trip.best ? "opt glass pick" : "opt glass"}>
+              <div key={f.origin} className={isBest(f) ? "opt glass pick" : "opt glass"}>
                 <div className="opt-row">
                   <span className="who">{f.airline}</span>
                   <span className="meta">
@@ -173,7 +175,7 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
             ground.map((g) => {
               const dep = departures.find((x) => x.id === g.depId) ?? firstDep;
               return (
-                <div key={`${g.mode}-${g.depId}`} className={g === trip.best ? "opt glass pick" : "opt glass"}>
+                <div key={`${g.mode}-${g.depId}`} className={isBest(g) ? "opt glass pick" : "opt glass"}>
                   <div className="opt-row">
                     <span className="who">
                       <Icon name={g.mode} /> {MODE_LABEL[g.mode]}

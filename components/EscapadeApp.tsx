@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DeparturePoint, SearchParams, SortKey, TripOption, VibeId, ViewMode } from "@/types";
-import { buildWindows, type MonthOption } from "@/lib/dates";
+import { buildWindows, earliestDeparture, type MonthOption } from "@/lib/dates";
 import { eur, fmtLong, fmtShort, listFr, plural } from "@/lib/format";
-import { defaultPrefs, getPrefsSnapshot, getServerPrefsSnapshot, subscribePrefs, updatePrefs, type Prefs } from "@/lib/prefs";
+import { defaultPrefs, getPrefsSnapshot, getServerPrefsSnapshot, normalizePrefs, subscribePrefs, updatePrefs, type Prefs } from "@/lib/prefs";
 import { matchesVibes, originsFor, sortTrips } from "@/lib/pricing";
 import { encodeShare, type SharedInput } from "@/lib/share";
 import { Header } from "./Header";
@@ -35,7 +35,8 @@ const DURATION_LONG = { weekend: "week-end (2 nuits)", long: "long week-end (3 n
 export default function EscapadeApp({ initialDepartures, months, shared = {}, sharedDepartures = [] }: Props) {
   const defaults = useMemo(() => defaultPrefs(initialDepartures), [initialDepartures]);
   const stored = useSyncExternalStore(subscribePrefs, getPrefsSnapshot, getServerPrefsSnapshot);
-  const prefs: Prefs = stored ?? defaults;
+  const prefs: Prefs = useMemo(() => normalizePrefs(stored, defaults) ?? defaults, [stored, defaults]);
+  const minDate = useMemo(() => earliestDeparture(), []);
   const setPrefs = useCallback((update: (p: Prefs) => Prefs) => updatePrefs(update, defaults), [defaults]);
 
   const firstFlex = useMemo(() => buildWindows({ dateMode: "flex", month: months[0].value, duration: "weekend", dateOut: "", dateIn: "" })[0], [months]);
@@ -127,7 +128,10 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         setProvider(data.provider);
         setError(null);
       } catch (e) {
-        if (!(e instanceof DOMException && e.name === "AbortError")) setError("Impossible de charger les prix. Réessaie dans un instant.");
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          setTrips([]);
+          setError("Impossible de charger les prix. Réessaie dans un instant.");
+        }
       } finally {
         if (!ctrl.signal.aborted) setFetching(false);
       }
@@ -155,7 +159,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   const depLabels = departures.map((d) => d.label);
   const nearbyCodes = [...originsFor(query).entries()].filter(([, v]) => v.nearby).map(([c]) => c);
 
-  const whenLabel = form.dateMode === "flex" ? DURATION_LABEL[form.duration] : `du ${fmtShort(form.dateOut)} au ${fmtShort(form.dateIn)}`;
+  const fixedOk = form.dateMode === "fixed" && windows.length > 0;
+  const whenLabel = form.dateMode === "flex" ? DURATION_LABEL[form.duration] : fixedOk ? `du ${fmtShort(form.dateOut)} au ${fmtShort(form.dateIn)}` : "à ces dates";
   const monthOption = months.find((m) => m.value === form.month);
   let title: string;
   let subtitle: string;
@@ -166,8 +171,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     emptyMessage = "Aucune ville de départ sélectionnée.";
   } else if (form.dateMode === "fixed" && !windows.length) {
     title = "Dates à corriger";
-    subtitle = "La date de retour doit être après le départ.";
-    emptyMessage = "Choisis une date de retour postérieure au départ.";
+    subtitle = "Départ à partir de demain, retour après le départ, trente nuits au plus.";
+    emptyMessage = "Choisis un départ à partir de demain et un retour après le départ.";
   } else {
     const n = inBudget.length;
     title = n ? `${n} ${plural(n, "escapade")} dès ${eur(byTotal[0].perPerson)}` : loading ? "Recherche en cours…" : "Aucune escapade";
@@ -250,8 +255,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     [shareQuery, showToast],
   );
 
-  const overlayOpen = railOpen || settingsOpen || openId !== null;
-  const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}`;
+  const overlayOpen = railOpen || settingsOpen || openTrip !== null;
+  const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : fixedOk ? `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}` : "dates à corriger";
 
   return (
     <>
@@ -270,6 +275,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
             form={{ ...form, travelers: prefs.travelers, budget: prefs.budget }}
             onChange={onFormChange}
             months={months}
+            minDate={minDate}
             saved={prefs.saved}
             activeIds={prefs.activeIds}
             onToggleDeparture={(id) => setPrefs((p) => ({ ...p, activeIds: p.activeIds.includes(id) ? p.activeIds.filter((x) => x !== id) : [...p.activeIds, id] }))}
@@ -289,7 +295,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
               </p>
             )}
             {view === "grid" && <TripGrid trips={shown} bestId={bestId} favs={prefs.favs} emptyMessage={emptyMessage} onOpen={setOpenId} onFav={toggleFav} />}
-            {view === "swipe" && <SwipeDeck trips={byTotal} swiped={swiped} favCount={prefs.favs.length} emptyMessage={emptyMessage} onDecide={decide} onOpen={setOpenId} onReset={() => setSwiped([])} />}
+            {view === "swipe" && <SwipeDeck trips={byTotal} swiped={swiped} favCount={prefs.favs.length} emptyMessage={emptyMessage} enabled={!overlayOpen} onDecide={decide} onOpen={setOpenId} onReset={() => setSwiped([])} />}
             {view === "map" && <MapView trips={byTotal.concat(outBudget)} inBudgetIds={new Set(inBudget.map((t) => t.destination.id))} bestId={bestId} favs={prefs.favs} departures={departures} onOpen={setOpenId} />}
             <p className="foot">
               Prix indicatifs. Les boutons de réservation ouvrent de vrais liens pré-remplis (Aviasales, Google Flights, Skyscanner, SNCF Connect, BlaBlaCar, Booking, Airbnb…) : le prix final se confirme sur le site du vendeur.
@@ -331,7 +337,9 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
           onToggleNearby={(iata) => setPrefs((p) => ({ ...p, excludedNearby: p.excludedNearby.includes(iata) ? p.excludedNearby.filter((x) => x !== iata) : [...p.excludedNearby, iata] }))}
           onRemove={(id) => setPrefs((p) => ({ ...p, saved: p.saved.filter((d) => d.id !== id), activeIds: p.activeIds.filter((x) => x !== id) }))}
           onAdd={(dep) => {
-            setPrefs((p) => ({ ...p, saved: [...p.saved, dep], activeIds: [...p.activeIds, dep.id] }));
+            setPrefs((p) =>
+              p.saved.some((d) => d.id === dep.id) ? { ...p, activeIds: p.activeIds.includes(dep.id) ? p.activeIds : [...p.activeIds, dep.id] } : { ...p, saved: [...p.saved, dep], activeIds: [...p.activeIds, dep.id] },
+            );
             showToast(`${dep.label} ajoutée`);
           }}
           onClose={() => setSettingsOpen(false)}
