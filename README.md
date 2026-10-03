@@ -35,10 +35,10 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · polices a
 
 ```
 app/            pages et routes API (App Router)
-  api/          routes serveur : recherche de prix, résolution des villes de départ
+  api/          routes serveur : recherche de prix, résolution des villes de départ, programme d'activités, aperçu Open Graph
 components/     composants React (ui/, search/, results/, settings/)
 lib/            logique métier pure : moteur de prix, liens, géo, paysages, fournisseurs
-  data/         jeux de données embarqués (aéroports, destinations, contours de carte)
+  data/         jeux de données embarqués (aéroports, destinations, activités, contours de carte)
   providers/    fournisseurs de prix : mock (défaut) et Travelpayouts
 types/          types TypeScript partagés
 scripts/        outils de génération de données
@@ -57,6 +57,12 @@ Les clés API ne sont jamais commitées : elles vont dans `.env.local` (voir `.e
 ## Partager et installer
 
 Le bouton **Partager** copie un lien qui rejoue la recherche telle quelle (villes, dates, voyageurs, budget, envies, vue, fiche ouverte) ; l'adresse du navigateur suit d'ailleurs chaque changement. L'app a un manifeste PWA : sur téléphone, « Ajouter à l'écran d'accueil » l'ouvre en plein écran.
+
+## Programme d'activités
+
+Chaque fiche se termine par **Ton programme** : un planning jour par jour (soir d'arrivée, journées pleines, matin du retour) composé à partir d'un catalogue éditorial de 7 à 10 activités par destination (`lib/data/activities/`). Il s'adapte à ce que tu indiques dans *Qui part ?* (solo, couple, potes, famille ; enfants, ados, 18–30, 30–50, 50+), aux envies cochées, au nombre de voyageurs et à la météo du mois (pas de plage à 12 °C). Les enfants excluent les soirées en boîte, un couple voit remonter les adresses romantiques, etc.
+
+Chaque activité ouvre Google Maps, propose un lien de réservation quand un billet est habituel (GetYourGuide), et affiche une durée et un prix indicatif qui s'ajoute au budget du séjour (« Séjour complet, programme d'activités compris »). **Remélanger** tire une autre composition, **Copier le programme** le met en texte pour le groupe. Le moteur (`lib/planner.ts`) remplit les créneaux au mieux ; sur une semaine, il détaille jusqu'à cinq journées et laisse les autres libres plutôt que de répéter. Le profil voyage dans le lien de partage (`g=family&a=kids,adults`).
 
 ## Villes de départ
 

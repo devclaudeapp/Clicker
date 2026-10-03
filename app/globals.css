@@ -284,6 +284,38 @@
   .alt-dates { display: grid; gap: 6px; }
   .alt-dates .d { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 12px; font-size: 14px; }
   .alt-dates .d.pick { border-color: var(--lagoon); background: rgba(62, 224, 200, 0.12); }
+  .budget tr.extra td { border: 0; padding-top: 2px; font-size: 14px; color: var(--muted); }
+  .budget tr.extra td small { display: block; font-size: 12.5px; }
+  .budget tr.extra td:last-child { font-weight: 700; color: var(--fg); }
+  .chip.sm { padding: 6px 11px; font-size: 13px; }
+  /* Programme d'activités */
+  .plan .days { list-style: none; display: grid; gap: 10px; }
+  .day { border-radius: 16px; padding: 13px 14px; display: grid; gap: 10px; }
+  .day h4 { font-family: var(--display); font-size: 14px; font-weight: 800; letter-spacing: 0.01em; }
+  .acts { list-style: none; display: grid; gap: 10px; }
+  .act { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: start; }
+  .act .when { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--amber); padding-top: 3px; }
+  .act .what { display: grid; gap: 4px; min-width: 0; }
+  .more .act { grid-template-columns: 1fr; }
+  .act .name { font-weight: 800; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; color: var(--fg); }
+  .act .name:hover { text-decoration: underline; }
+  .act .name svg { width: 14px; height: 14px; color: var(--muted); }
+  .act .blurb { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+  .act.free .when { color: var(--muted); }
+  .act.free .blurb { font-style: italic; }
+  .act .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
+  .act .tag.free { background: rgba(62, 224, 200, 0.16); color: var(--fg); }
+  .act .tag.book { background: var(--sunset); color: var(--ink-on-sunset); text-decoration: none; cursor: pointer; }
+  .more { border-radius: 14px; border: 1px dashed var(--line-strong); padding: 10px 14px; }
+  .more summary { cursor: pointer; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 8px; }
+  .more summary::-webkit-details-marker { display: none; }
+  .more summary::before { content: "+"; font-family: var(--display); font-size: 18px; color: var(--amber); transition: transform 0.25s var(--ease); }
+  .more[open] summary::before { transform: rotate(45deg); }
+  .more[open] summary { margin-bottom: 12px; }
+  .plan-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+  .plan-wait { gap: 10px; }
+  .plan-wait .sk { display: block; height: 14px; border-radius: 7px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.06) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+  .plan-wait .sk.short { width: 55%; }
   .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
   .modal-box { border-radius: var(--r); width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 20px; display: grid; gap: 18px; }
   .drawer-head { display: flex; align-items: start; gap: 12px; }
@@ -327,6 +359,7 @@
   .stack { height: 540px; }
   .map-wrap { height: 64vh; min-height: 420px; }
   .tip { width: min(250px, calc(100% - 16px)); }
+  .act { grid-template-columns: 1fr; gap: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

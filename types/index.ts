@@ -171,6 +171,86 @@ export interface TransportCandidate {
   link?: string;
 }
 
+/** Tranches d'âge présentes dans le groupe. */
+export type AgeBand = "kids" | "teens" | "young" | "adults" | "seniors";
+/** Composition du groupe. */
+export type GroupType = "solo" | "couple" | "friends" | "family";
+export type DaySlot = "morning" | "afternoon" | "evening";
+export type ActivityKind =
+  | "sight"
+  | "museum"
+  | "walk"
+  | "viewpoint"
+  | "beach"
+  | "nature"
+  | "food"
+  | "market"
+  | "nightlife"
+  | "bar"
+  | "shop"
+  | "spa"
+  | "boat"
+  | "sport"
+  | "daytrip"
+  | "show";
+
+/** Une activité du catalogue éditorial, rattachée à une destination. */
+export interface Activity {
+  id: string;
+  destId: string;
+  name: string;
+  /** Une phrase : pourquoi y aller, comment. */
+  blurb: string;
+  kind: ActivityKind;
+  vibes: VibeId[];
+  /** Tranches d'âge pour lesquelles l'activité convient ; une tranche présente et absente d'ici exclut l'activité. */
+  ages: AgeBand[];
+  /** Compositions de groupe pour lesquelles elle brille (bonus, pas exclusion). */
+  groups: GroupType[];
+  slots: DaySlot[];
+  hours: number;
+  /** 0 gratuit · 1 ~10 € · 2 ~25 € · 3 ~60 € par personne. */
+  price: 0 | 1 | 2 | 3;
+  /** Vrai quand une réservation ou un billet est habituel : on propose un lien de réservation. */
+  bookable?: boolean;
+  /** Requête Google Maps si le nom seul est ambigu. */
+  query?: string;
+}
+
+/** Qui part : sert à adapter le programme. */
+export interface TravelProfile {
+  group: GroupType;
+  ages: AgeBand[];
+  vibes: VibeId[];
+  travelers: number;
+}
+
+export interface PlanSlot {
+  slot: DaySlot;
+  activity: Activity;
+}
+
+export interface PlanDay {
+  index: number;
+  date: string;
+  /** « Vendredi soir · arrivée », « Samedi », « Dimanche matin · avant le retour ». */
+  label: string;
+  slots: PlanSlot[];
+  /** Créneaux restés libres faute d'activité adaptée : on les affiche comme tels, avec une suggestion. */
+  free: DaySlot[];
+}
+
+/** Programme composé pour une escapade et un profil. */
+export interface Itinerary {
+  days: PlanDay[];
+  /** Jours non détaillés (séjours longs) : nombre de journées libres. */
+  freeDays: number;
+  leftovers: Activity[];
+  /** Estimation des activités retenues, par personne. */
+  costPerPerson: number;
+  seed: number;
+}
+
 /** Une escapade chiffrée : destination, dates retenues, transport le moins cher et budget du séjour. */
 export interface TripOption {
   destination: Destination;

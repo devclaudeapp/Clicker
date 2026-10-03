@@ -50,4 +50,9 @@ export const LINKS = {
     `https://www.booking.com/searchresults.fr.html?ss=${enc(city)}&checkin=${out}&checkout=${ret}&group_adults=${adults}&no_rooms=${Math.ceil(adults / 2)}&group_children=0&selected_currency=EUR`,
   airbnb: (city: string, out: string, ret: string, adults: number): string =>
     `https://www.airbnb.fr/s/${enc(city)}/homes?checkin=${out}&checkout=${ret}&adults=${adults}`,
+
+  /** Une activité sur Google Maps : « Park Güell Barcelone ». */
+  maps: (place: string, city: string): string => `https://www.google.com/maps/search/?api=1&query=${enc(`${place} ${city}`)}`,
+  /** Billets et visites guidées : recherche pré-remplie sur GetYourGuide. */
+  getYourGuide: (activity: string, city: string): string => `https://www.getyourguide.fr/s/?q=${enc(`${activity} ${city}`)}`,
 };

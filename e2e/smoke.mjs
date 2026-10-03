@@ -48,8 +48,29 @@ await session("bureau", { width: 1360, height: 900 }, async (page) => {
   await page.waitForSelector(".drawer");
   const links = await page.locator(".drawer a[href^='https://']").count();
   check("fiche : liens de réservation", links >= 8, `${links} liens`);
+  await page.waitForSelector(".drawer .plan .day", { timeout: 10000 });
+  const days = await page.locator(".drawer .plan .day").count();
+  const acts = await page.locator(".drawer .plan .days .act:not(.free)").count();
+  check("fiche : programme d'activités", days === 3 && acts >= 3 && (await page.locator(".budget tr.extra").count()) === 1, `${days} jours, ${acts} activités`);
+  const before = await page.locator(".drawer .plan .days").innerText();
+  await page.getByRole("button", { name: "Remélanger" }).click();
+  await page.waitForTimeout(600);
+  check("fiche : Remélanger", (await page.locator(".drawer .plan .days").innerText()) !== before);
   await page.screenshot({ path: join(OUT, "bureau-fiche.png") });
   await page.keyboard.press("Escape");
+
+  // « Qui part ? » : famille avec enfants, le programme n'a plus de soirée en boîte ni de bar.
+  await page.locator(".rail .chip", { hasText: "Famille" }).click();
+  await page.locator(".rail .chip.sm", { hasText: "Enfants" }).click();
+  await page.locator(".card .btn").first().click();
+  await page.waitForSelector(".drawer .plan .day");
+  const kinds = await page.locator(".drawer .plan .days .tag").allInnerTexts();
+  check("profil famille : programme adapté", kinds.length > 0 && !kinds.some((k) => k === "Soirée" || k === "Verre"), `${kinds.length} étiquettes`);
+  await page.waitForTimeout(500); // l'adresse suit la recherche avec un léger délai
+  check("profil famille : dans l'adresse", (await page.evaluate(() => location.search)).includes("g=family"));
+  await page.keyboard.press("Escape");
+  await page.locator(".rail .chip", { hasText: "Potes" }).click();
+  await page.locator(".rail .chip.sm", { hasText: "Enfants" }).click();
 
   await page.getByRole("button", { name: "Carte" }).click();
   await page.waitForSelector(".map .mk");
@@ -77,11 +98,12 @@ await session("bureau", { width: 1360, height: 900 }, async (page) => {
 await session("partage", { width: 1360, height: 900 }, async (page) => {
   await page.goto(BASE, { waitUntil: "networkidle" });
   const month = await page.locator("#month option").first().getAttribute("value");
-  await page.goto(`${BASE}/?d=Paris,Lille&m=${month}&du=long&t=3&b=500&v=city&view=map&open=lon`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/?d=Paris,Lille&m=${month}&du=long&t=3&b=500&g=couple&a=adults&v=city&view=map&open=lon`, { waitUntil: "networkidle" });
   await page.waitForSelector(".drawer", { timeout: 20000 });
   check("lien partagé : villes", (await page.locator("header nav .lbl").innerText()) === "Paris · Lille");
   check("lien partagé : fiche ouverte", (await page.locator(".drawer h2").innerText()) === "Londres");
   check("lien partagé : vue, voyageurs, budget", (await page.locator('.view button[aria-pressed="true"]').innerText()) === "Carte" && (await page.locator(".stepper output").innerText()) === "3" && (await page.locator("#budget").inputValue()) === "500");
+  check("lien partagé : qui part", (await page.locator(".rail .chip.on", { hasText: "Couple" }).count()) === 1 && (await page.locator(".rail .chip.sm.on").allInnerTexts()).join() === "30–50");
   await page.keyboard.press("Escape");
   await page.locator('.stepper button[aria-label="Un voyageur de plus"]').click();
   await page.waitForTimeout(600);

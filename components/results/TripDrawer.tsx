@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import type { DeparturePoint, TransportCandidate, TripOption } from "@/types";
+import type { DeparturePoint, TransportCandidate, TravelProfile, TripOption } from "@/types";
 import { eur, fmtLong, fmtShort, minutesLabel } from "@/lib/format";
 import { haversineKm } from "@/lib/geo";
 import { LINKS } from "@/lib/links";
 import { originOf } from "@/lib/pricing";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
+import { Itinerary, useItinerary } from "./Itinerary";
 import { MiniMap } from "./MiniMap";
 import { LandTags, MODE_LABEL, TempTag } from "./TripBits";
 
@@ -13,6 +14,7 @@ interface Props {
   trip: TripOption;
   departures: DeparturePoint[];
   travelers: number;
+  profile: TravelProfile;
   flexible: boolean;
   fav: boolean;
   onFav: (id: string) => void;
@@ -30,7 +32,7 @@ function Ext({ href, label, primary }: { href: string; label: string; primary?: 
 }
 
 /** Fiche complète d'une escapade : paysage, trajet, budget, vols, alternatives terrestres, hébergement. */
-export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, onClose, onToast, onShareLink }: Props) {
+export function TripDrawer({ trip, departures, travelers, profile, flexible, fav, onFav, onClose, onToast, onShareLink }: Props) {
   const d = trip.destination;
   const w = trip.window;
   const a = travelers;
@@ -42,6 +44,8 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
   const isBest = (c: TransportCandidate) => c.mode === trip.best.mode && c.depId === trip.best.depId && c.origin === trip.best.origin;
   const closeRef = useRef<HTMLButtonElement>(null);
   const firstDep = departures[0];
+  const plan = useItinerary(trip, profile);
+  const activities = plan.itinerary ? plan.itinerary.costPerPerson * a : null;
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -111,9 +115,22 @@ export function TripDrawer({ trip, departures, travelers, flexible, fav, onFav, 
                 </td>
                 <td className="num">{eur(trip.total)}</td>
               </tr>
+              {activities !== null && (
+                <tr className="extra">
+                  <td>
+                    Séjour complet, programme d&apos;activités compris
+                    <small>
+                      + ~{eur(activities)} d&apos;activités · {eur(Math.round((trip.total + activities) / a))} par personne
+                    </small>
+                  </td>
+                  <td className="num">~{eur(trip.total + activities)}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        <Itinerary trip={trip} profile={profile} state={plan} onToast={onToast} />
 
         {flexible && trip.alternatives.length > 1 && (
           <div className="section">

@@ -1,5 +1,6 @@
-import type { DateMode, DeparturePoint, DurationPreset, TransportMode } from "@/types";
+import type { AgeBand, DateMode, DeparturePoint, DurationPreset, GroupType, TransportMode } from "@/types";
 import type { MonthOption } from "@/lib/dates";
+import { AGES, GROUPS } from "@/lib/data/profile";
 import { eur } from "@/lib/format";
 import { Icon } from "../ui/Icon";
 
@@ -12,6 +13,8 @@ export interface SearchForm {
   dateIn: string;
   travelers: number;
   budget: number;
+  group: GroupType;
+  ages: AgeBand[];
   modes: Record<TransportMode, boolean>;
   directOnly: boolean;
 }
@@ -41,6 +44,12 @@ const TRANSPORTS: { mode: TransportMode; label: string }[] = [
 
 export function SearchRail({ form, onChange, months, minDate, saved, activeIds, onToggleDeparture, includeNearby, onIncludeNearby, nearbyInfo, open, onClose }: Props) {
   const pct = ((form.budget - 100) / 900) * 100;
+  // Solo et couple fixent le nombre de voyageurs ; une tranche d'âge au moins reste cochée.
+  const pickGroup = (g: (typeof GROUPS)[number]) => onChange(g.travelers ? { group: g.id, travelers: g.travelers } : { group: g.id });
+  const toggleAge = (id: AgeBand) => {
+    const next = form.ages.includes(id) ? form.ages.filter((a) => a !== id) : AGES.map((a) => a.id).filter((a) => a === id || form.ages.includes(a));
+    if (next.length) onChange({ ages: next });
+  };
   return (
     <aside className={open ? "rail glass open" : "rail glass"} aria-label="Recherche">
       <div className="sheet-head">
@@ -140,6 +149,34 @@ export function SearchRail({ form, onChange, months, minDate, saved, activeIds, 
             onChange={(e) => onChange({ budget: Number(e.target.value) })}
           />
         </div>
+      </div>
+
+      <div className="field">
+        <span className="label">Qui part ?</span>
+        <div className="chips" role="radiogroup" aria-label="Composition du groupe">
+          {GROUPS.map((g) => {
+            const on = form.group === g.id;
+            return (
+              <label key={g.id} className={on ? "chip on" : "chip"}>
+                <input type="radio" name="group" checked={on} onChange={() => pickGroup(g)} />
+                <Icon name={g.icon} />
+                {g.label}
+              </label>
+            );
+          })}
+        </div>
+        <div className="chips" aria-label="Tranches d'âge">
+          {AGES.map((a) => {
+            const on = form.ages.includes(a.id);
+            return (
+              <label key={a.id} className={on ? "chip sm on" : "chip sm"}>
+                <input type="checkbox" checked={on} onChange={() => toggleAge(a.id)} />
+                {a.label}
+              </label>
+            );
+          })}
+        </div>
+        <p className="hint">Le programme d&apos;activités de chaque fiche s&apos;adapte au groupe, aux âges et aux envies.</p>
       </div>
 
       <div className="field">

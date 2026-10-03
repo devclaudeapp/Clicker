@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { DeparturePoint, SearchParams, SortKey, TripOption, VibeId, ViewMode } from "@/types";
+import type { DeparturePoint, SearchParams, SortKey, TravelProfile, TripOption, VibeId, ViewMode } from "@/types";
 import { buildWindows, earliestDeparture, type MonthOption } from "@/lib/dates";
 import { eur, fmtLong, fmtShort, listFr, plural } from "@/lib/format";
 import { defaultPrefs, getPrefsSnapshot, getServerPrefsSnapshot, normalizePrefs, subscribePrefs, updatePrefs, type Prefs } from "@/lib/prefs";
@@ -26,7 +26,7 @@ interface Props {
 }
 
 /** Champs de recherche non persistés : dates et transports. */
-type DateForm = Omit<SearchForm, "travelers" | "budget">;
+type DateForm = Omit<SearchForm, "travelers" | "budget" | "group" | "ages">;
 
 const DURATION_LABEL = { weekend: "ce week-end", long: "ce long week-end", week: "cette semaine" } as const;
 const DURATION_SHORT = { weekend: "week-end", long: "long week-end", week: "semaine" } as const;
@@ -73,7 +73,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   useEffect(() => {
     if (sharedApplied.current) return;
     sharedApplied.current = true;
-    const hasPrefs = sharedDepartures.length > 0 || shared.includeNearby !== undefined || shared.excludedNearby || shared.travelers || shared.budget;
+    const hasPrefs = sharedDepartures.length > 0 || shared.includeNearby !== undefined || shared.excludedNearby || shared.travelers || shared.budget || shared.group || shared.ages;
     if (!hasPrefs) return;
     setPrefs((p) => {
       const saved = p.saved.slice();
@@ -86,6 +86,8 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         excludedNearby: shared.excludedNearby ?? p.excludedNearby,
         travelers: shared.travelers ?? p.travelers,
         budget: shared.budget ?? p.budget,
+        group: shared.group ?? p.group,
+        ages: shared.ages ?? p.ages,
       };
     });
     const t = window.setTimeout(() => showToast("Recherche partagée chargée"), 0);
@@ -223,8 +225,9 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     return () => window.removeEventListener("keydown", onKey);
   }, [closeAll]);
   const onFormChange = (patch: Partial<SearchForm>) => {
-    const { travelers, budget, ...rest } = patch;
-    if (travelers !== undefined || budget !== undefined) setPrefs((p) => ({ ...p, travelers: travelers ?? p.travelers, budget: budget ?? p.budget }));
+    const { travelers, budget, group, ages, ...rest } = patch;
+    if (travelers !== undefined || budget !== undefined || group !== undefined || ages !== undefined)
+      setPrefs((p) => ({ ...p, travelers: travelers ?? p.travelers, budget: budget ?? p.budget, group: group ?? p.group, ages: ages ?? p.ages }));
     if (Object.keys(rest).length) setForm((f) => ({ ...f, ...rest }));
   };
 
@@ -242,13 +245,15 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         dateIn: form.dateIn,
         travelers: prefs.travelers,
         budget: prefs.budget,
+        group: prefs.group,
+        ages: prefs.ages,
         modes: form.modes,
         directOnly: form.directOnly,
         vibes,
         view,
         open,
       }),
-    [departures, prefs.includeNearby, prefs.excludedNearby, prefs.travelers, prefs.budget, form, vibes, view],
+    [departures, prefs.includeNearby, prefs.excludedNearby, prefs.travelers, prefs.budget, prefs.group, prefs.ages, form, vibes, view],
   );
   const currentQuery = shareQuery(openId);
   useEffect(() => {
@@ -265,6 +270,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   );
 
   const overlayOpen = railOpen || settingsOpen || openTrip !== null;
+  const profile = useMemo<TravelProfile>(() => ({ group: prefs.group, ages: prefs.ages, vibes, travelers: prefs.travelers }), [prefs.group, prefs.ages, vibes, prefs.travelers]);
   const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : fixedOk ? `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}` : "dates à corriger";
 
   return (
@@ -281,7 +287,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
 
         <div className="cols">
           <SearchRail
-            form={{ ...form, travelers: prefs.travelers, budget: prefs.budget }}
+            form={{ ...form, travelers: prefs.travelers, budget: prefs.budget, group: prefs.group, ages: prefs.ages }}
             onChange={onFormChange}
             months={months}
             minDate={minDate}
@@ -331,6 +337,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
           trip={openTrip}
           departures={departures}
           travelers={prefs.travelers}
+          profile={profile}
           flexible={form.dateMode === "flex"}
           fav={prefs.favs.includes(openTrip.destination.id)}
           onFav={toggleFav}

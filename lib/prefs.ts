@@ -1,4 +1,5 @@
-import type { DeparturePoint } from "@/types";
+import type { AgeBand, DeparturePoint, GroupType } from "@/types";
+import { DEFAULT_AGES, DEFAULT_GROUP, GROUP_IDS, normalizeAges } from "./data/profile";
 import { localStore } from "./storage";
 
 /** Réglages conservés d'une visite à l'autre. */
@@ -10,6 +11,9 @@ export interface Prefs {
   favs: string[];
   travelers: number;
   budget: number;
+  /** Qui part : composition du groupe et tranches d'âge, pour le programme d'activités. */
+  group: GroupType;
+  ages: AgeBand[];
 }
 
 export const defaultPrefs = (departures: DeparturePoint[]): Prefs => ({
@@ -20,6 +24,8 @@ export const defaultPrefs = (departures: DeparturePoint[]): Prefs => ({
   favs: [],
   travelers: 2,
   budget: 400,
+  group: DEFAULT_GROUP,
+  ages: DEFAULT_AGES,
 });
 
 const strings = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : undefined);
@@ -44,6 +50,8 @@ export function normalizePrefs(stored: unknown, defaults: Prefs): Prefs | null {
     favs: strings(s.favs) ?? defaults.favs,
     travelers: inRange(s.travelers, 1, 8) ?? defaults.travelers,
     budget: inRange(s.budget, 100, 1000) ?? defaults.budget,
+    group: typeof s.group === "string" && GROUP_IDS.has(s.group) ? (s.group as GroupType) : defaults.group,
+    ages: normalizeAges(s.ages).length ? normalizeAges(s.ages) : defaults.ages,
   };
 }
 

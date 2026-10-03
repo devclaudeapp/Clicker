@@ -1,8 +1,9 @@
-import type { DateMode, DurationPreset, TransportMode, VibeId, ViewMode } from "@/types";
+import type { AgeBand, DateMode, DurationPreset, GroupType, TransportMode, VibeId, ViewMode } from "@/types";
+import { GROUP_IDS, normalizeAges } from "./data/profile";
 import { VIBES } from "./data/vibes";
 
 /**
- * État d'une recherche tel qu'il voyage dans l'URL (« ?d=Lyon,Genève&m=2026-11&du=weekend&t=2&b=400&open=pmo »).
+ * État d'une recherche tel qu'il voyage dans l'URL (« ?d=Lyon,Genève&m=2026-11&du=weekend&t=2&b=400&g=friends&a=young&open=pmo »).
  * Les clés sont courtes pour que le lien reste lisible dans une conversation ; tout ce qui est absent garde sa valeur par défaut.
  */
 export interface ShareState {
@@ -17,6 +18,8 @@ export interface ShareState {
   dateIn: string;
   travelers: number;
   budget: number;
+  group: GroupType;
+  ages: AgeBand[];
   modes: Record<TransportMode, boolean>;
   directOnly: boolean;
   vibes: VibeId[];
@@ -48,6 +51,8 @@ export function encodeShare(s: ShareState): string {
   }
   p.set("t", String(s.travelers));
   p.set("b", String(s.budget));
+  p.set("g", s.group);
+  if (s.ages.length) p.set("a", s.ages.join(","));
   const off = MODES.filter((m) => !s.modes[m]);
   if (off.length) p.set("off", off.join(","));
   if (s.directOnly) p.set("dir", "1");
@@ -97,6 +102,10 @@ export function decodeShare(raw: RawParams): SharedInput {
   if (Number.isInteger(t) && t >= 1 && t <= 8) out.travelers = t;
   const b = Number(one(raw, "b"));
   if (Number.isFinite(b) && b >= 100 && b <= 1000) out.budget = Math.round(b / 10) * 10;
+  const g = one(raw, "g");
+  if (g && GROUP_IDS.has(g)) out.group = g as GroupType;
+  const ages = normalizeAges(list(raw, "a"));
+  if (ages.length) out.ages = ages;
   const off = new Set(list(raw, "off"));
   if (off.size) out.modes = Object.fromEntries(MODES.map((mode) => [mode, !off.has(mode)])) as Record<TransportMode, boolean>;
   if (one(raw, "dir") === "1") out.directOnly = true;
