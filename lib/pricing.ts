@@ -46,7 +46,7 @@ function quote(p: SearchParams, dest: Destination, w: DateWindow, origins: Map<s
       if (p.directOnly && !f.direct) continue;
       cands.push({
         mode: "plane", price: f.price, duration: f.duration, depId: info.depId, originLabel: info.label, origin, originCity: info.city,
-        airline: f.airline, direct: f.direct, viaNearby: info.nearby, nearbyMinutes: info.minutes, enabled: true, link: f.link,
+        airline: f.airline, direct: f.direct, stops: f.stops, viaNearby: info.nearby, nearbyMinutes: info.minutes, enabled: true, link: f.link,
       });
     }
   }

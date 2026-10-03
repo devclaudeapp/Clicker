@@ -18,7 +18,7 @@ export const mockProvider: PriceProvider = {
         for (const f of dest.fares) {
           if (!origins.has(f.origin)) continue;
           if (q.directOnly && !f.direct) continue;
-          out.push({ origin: f.origin, destId: dest.id, windowKey: w.key, price: Math.round(f.price * mult), airline: f.airline, duration: f.duration, direct: f.direct });
+          out.push({ origin: f.origin, destId: dest.id, windowKey: w.key, price: Math.round(f.price * mult), airline: f.airline, duration: f.duration, direct: f.direct, stops: f.direct ? 0 : 1 });
         }
       }
     }

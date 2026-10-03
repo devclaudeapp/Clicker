@@ -6,11 +6,19 @@ import type { FareQuery, PriceProvider } from "./types";
  * Travelpayouts / Aviasales Data API (gratuite, prix en cache actualisés toutes les 48 h).
  * Endpoint utilisé : GET https://api.travelpayouts.com/aviasales/v3/prices_for_dates
  * Une requête par (aéroport d'origine, destination, mois) en dates flexibles, par (origine, destination, dates) en dates fixes.
- * Les réponses sont gardées 24 h en mémoire et les appels identiques en vol sont dédoublonnés.
+ * Les réponses sont gardées 24 h en mémoire (10 min pour un échec), les appels identiques en vol sont dédoublonnés, et le
+ * débit est bridé sous la limite de 600 requêtes par minute de l'API.
  */
 const ENDPOINT = "https://api.travelpayouts.com/aviasales/v3/prices_for_dates";
 const TTL_MS = 24 * 3600 * 1000;
-const CONCURRENCY = 8;
+/** Un appel en erreur (429, panne) n'est pas retenté avant ce délai : la recherche suivante ne relance pas la rafale. */
+const NEG_TTL_MS = 10 * 60 * 1000;
+const CONCURRENCY = 4;
+/** Au plus un appel toutes les 110 ms, soit ~540 par minute. */
+const MIN_INTERVAL_MS = 110;
+/** Attente avant l'unique relance d'un 429 sans en-tête Retry-After, et plafond quand il y en a un. */
+const RETRY_MS = 2000;
+const RETRY_MAX_MS = 60_000;
 
 /** Codes IATA des compagnies les plus fréquentes au départ de France et de Suisse. */
 const AIRLINES: Record<string, string> = {
@@ -48,12 +56,21 @@ export interface TravelpayoutsOptions {
   marker?: string;
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Attente (tests : une fonction qui ne dort pas). */
+  sleep?: (ms: number) => Promise<void>;
 }
 
-const cache = new Map<string, { at: number; data: TpItem[] }>();
+const cache = new Map<string, { at: number; ttl: number; data: TpItem[] }>();
 const inflight = new Map<string, Promise<TpItem[]>>();
 
 const isDirect = (it: TpItem) => (it.transfers ?? 0) === 0 && (it.return_transfers ?? 0) === 0;
+const stopsOf = (it: TpItem) => Math.max(it.transfers ?? 0, it.return_transfers ?? 0);
+
+/** Délai demandé par l'API après un 429, borné ; à défaut, une attente fixe. */
+function retryAfterMs(res: Response): number {
+  const s = Number(res.headers.get("retry-after"));
+  return Number.isFinite(s) && s > 0 ? Math.min(s * 1000, RETRY_MAX_MS) : RETRY_MS;
+}
 
 /**
  * Ne garde, par couple de dates (aller, retour), que le tarif le moins cher et le direct le moins cher :
@@ -72,7 +89,7 @@ function compact(items: TpItem[]): TpItem[] {
   return [...new Set(best.values())];
 }
 
-/** Exécute les tâches par lots pour rester loin de la limite de 600 requêtes par minute. */
+/** Exécute les tâches avec quelques travailleurs en parallèle ; le débit lui-même est tenu par `slot`. */
 async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let i = 0;
@@ -91,21 +108,57 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
   const marker = opts.marker ?? process.env.TRAVELPAYOUTS_MARKER;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const now = opts.now ?? Date.now;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
+  /** Réserve le prochain créneau d'appel : les appels sont espacés d'au moins MIN_INTERVAL_MS, quel que soit le parallélisme. */
+  let nextSlot = 0;
+  const slot = async () => {
+    const t = now();
+    const at = Math.max(t, nextSlot);
+    nextSlot = at + MIN_INTERVAL_MS;
+    if (at > t) await sleep(at - t);
+  };
+
+  /** Lien de réservation Aviasales renvoyé par l'API, en euros et avec le marker partenaire. */
+  const aviasalesLink = (path: string): string => {
+    const u = new URL(path, "https://www.aviasales.com");
+    u.searchParams.set("currency", "eur");
+    if (marker) u.searchParams.set("marker", marker);
+    return u.toString();
+  };
+
+  /** Un appel bridé en débit ; sur 429, une seule relance après le délai demandé par l'API. */
+  async function request(task: Task): Promise<TpItem[]> {
+    const url = `${ENDPOINT}?${new URLSearchParams({ ...task.params, currency: "eur", sorting: "price", one_way: "false", direct: "false", limit: "1000", token: token! })}`;
+    const call = async () => {
+      await slot();
+      return fetchImpl(url, { cache: "no-store", headers: { Accept: "application/json" } });
+    };
+    let res = await call();
+    if (res.status === 429) {
+      await sleep(retryAfterMs(res));
+      res = await call();
+    }
+    if (!res.ok) throw new Error(`Travelpayouts ${res.status} pour ${task.origin}→${task.destination}`);
+    const body = (await res.json()) as { success?: boolean; data?: TpItem[] };
+    return Array.isArray(body.data) ? body.data : [];
+  }
 
   async function load(task: Task): Promise<TpItem[]> {
     const hit = cache.get(task.key);
-    if (hit && now() - hit.at < TTL_MS) return hit.data;
+    if (hit && now() - hit.at < hit.ttl) return hit.data;
     if (hit) cache.delete(task.key);
     const pending = inflight.get(task.key);
     if (pending) return pending;
     const p = (async () => {
-      const url = `${ENDPOINT}?${new URLSearchParams({ ...task.params, currency: "eur", sorting: "price", one_way: "false", direct: "false", limit: "1000", token: token! })}`;
-      const res = await fetchImpl(url, { cache: "no-store", headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`Travelpayouts ${res.status} pour ${task.origin}→${task.destination}`);
-      const body = (await res.json()) as { success?: boolean; data?: TpItem[] };
-      const data = compact(Array.isArray(body.data) ? body.data : []);
-      cache.set(task.key, { at: now(), data });
-      return data;
+      try {
+        const data = compact(await request(task));
+        cache.set(task.key, { at: now(), ttl: TTL_MS, data });
+        return data;
+      } catch (e) {
+        cache.set(task.key, { at: now(), ttl: NEG_TTL_MS, data: [] });
+        throw e;
+      }
     })();
     inflight.set(task.key, p);
     try {
@@ -166,7 +219,8 @@ export function createTravelpayoutsProvider(opts: TravelpayoutsOptions = {}): Pr
             airline: AIRLINES[it.airline] ?? it.airline,
             duration: minutes ? minutesLabel(minutes) : "durée inconnue",
             direct,
-            link: it.link ? `https://www.aviasales.com${it.link}${marker ? `${it.link.includes("?") ? "&" : "?"}marker=${encodeURIComponent(marker)}` : ""}` : undefined,
+            stops: stopsOf(it),
+            link: it.link ? aviasalesLink(it.link) : undefined,
           });
         }
       }

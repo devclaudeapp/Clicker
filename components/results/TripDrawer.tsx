@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { DeparturePoint, TransportCandidate, TravelProfile, TripOption } from "@/types";
-import { eur, fmtLong, fmtShort, minutesLabel } from "@/lib/format";
+import { eur, fmtLong, fmtShort, minutesLabel, plural } from "@/lib/format";
 import { haversineKm } from "@/lib/geo";
 import { LINKS } from "@/lib/links";
 import { originOf } from "@/lib/pricing";
@@ -57,7 +57,8 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
     else onToast("Copie impossible ici");
   };
 
-  const flightLink = (origin: string) => ({ origin, destination: d.iata, out: w.out, ret: w.ret, adults: a });
+  // Le marker partenaire n'est pas un secret (il figure dans les liens publics) : exposé au navigateur pour les liens de repli.
+  const flightLink = (origin: string) => ({ origin, destination: d.iata, out: w.out, ret: w.ret, adults: a, marker: process.env.NEXT_PUBLIC_TRAVELPAYOUTS_MARKER || undefined });
 
   return (
     <aside className="drawer glass-3" aria-label={`Séjour à ${d.city}`}>
@@ -163,7 +164,7 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
                 <div className="opt-row">
                   <span className="who">{f.airline}</span>
                   <span className="meta">
-                    {f.originLabel} ({f.origin}) → {d.iata} · {f.duration} · {f.direct ? "direct" : "1 escale"}
+                    {f.originLabel} ({f.origin}) → {d.iata} · {f.duration} · {f.direct ? "direct" : `${f.stops || 1} ${plural(f.stops || 1, "escale")}`}
                     {f.viaNearby && f.nearbyMinutes != null ? ` · ${minutesLabel(f.nearbyMinutes)} pour rejoindre ${f.originCity}` : ""}
                   </span>
                   <span className="p num">

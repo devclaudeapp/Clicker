@@ -27,7 +27,7 @@ export async function generateMetadata(props: PageProps<"/">): Promise<Metadata>
   if (shared.open) {
     try {
       const params = paramsFromShared(shared);
-      const trip = (await searchTrips(params)).trips.find((t) => t.destination.id === shared.open);
+      const trip = (await searchTrips(params, { only: [shared.open] })).trips.find((t) => t.destination.id === shared.open);
       if (trip) {
         title = `${trip.destination.city} dès ${eur(trip.perPerson)} par personne`;
         description = `${fmtLong(trip.window.out)} → ${fmtLong(trip.window.ret)} · ${MODE_LABEL[trip.best.mode]} depuis ${listFr(params.departures.map((d) => d.label))} + ${trip.window.nights} nuits · ${eur(trip.total)} pour ${params.travelers}.`;

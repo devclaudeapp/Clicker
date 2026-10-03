@@ -103,7 +103,8 @@ export async function GET(req: NextRequest) {
   const from = listFr(params.departures.map((d) => d.label)) || "chez toi";
   let trips: TripOption[] = [];
   try {
-    trips = (await searchTrips(params)).trips;
+    // Une fiche précise ne demande que sa destination : l'aperçu reste rapide même avec un fournisseur de prix réel.
+    trips = (await searchTrips(params, shared.open ? { only: [shared.open] } : {})).trips;
   } catch (e) {
     console.warn("[api/og]", (e as Error).message);
   }

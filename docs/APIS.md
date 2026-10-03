@@ -9,7 +9,7 @@ Par défaut, Escapade tourne en mode **mock** : des prix fictifs mais cohérents
 - **Données** : les prix les moins chers trouvés par les utilisateurs d'Aviasales dans les **48 dernières heures**, par origine, destination et dates. C'est un cache, pas une recherche en direct : parfait pour « où partir pas cher ce mois-ci », moins fiable pour un vol précis à J-2. Le prix final se confirme toujours sur le site au clic.
 - **Couverture** : excellente depuis les grands aéroports (Lyon, Genève, Paris, Bâle…), parfois vide depuis les petits (Grenoble, Chambéry, Annecy). Dans ce cas la destination n'apparaît simplement pas pour cet aéroport.
 - **Prix par adulte**, en euros si on le demande. L'app multiplie par le nombre de voyageurs.
-- **Limites** : 600 requêtes par minute sur l'endpoint utilisé ; au-delà, HTTP 429 jusqu'à la minute suivante. L'app garde chaque réponse 24 h en mémoire et regroupe les appels (un par aéroport d'origine × destination × mois), donc une recherche complète coûte au plus ~100 appels la première fois, puis 0.
+- **Limites** : 600 requêtes par minute sur l'endpoint utilisé ; au-delà, HTTP 429 jusqu'à la minute suivante. L'app bride son débit à ~9 appels par seconde, relance une seule fois un 429 après le délai demandé, et garde chaque réponse 24 h en mémoire (10 min pour un appel en erreur, pour ne pas relancer une rafale). Une recherche coûte un appel par aéroport d'origine × destination × mois : ~45 pour une ville à un seul aéroport, plusieurs centaines avec « Inclure les alentours » (Lyon + Genève, soit une dizaine d'aéroports, ≈ 450 appels, environ une minute la première fois), puis 0 pendant 24 h. Le cache vit en mémoire : sur Vercel, chaque instance a le sien. L'aperçu d'un lien partagé vers une fiche n'interroge que cette destination.
 - **Pas d'hôtels, pas de train** : Booking, SNCF Connect, BlaBlaCar et FlixBus n'ont pas d'API gratuite ; l'app continue d'y envoyer par liens pré-remplis.
 
 ## 2. Créer le compte (gratuit, 10 minutes)
@@ -33,10 +33,12 @@ Ne partage jamais le token : il donne accès à ton compte partenaire.
    PRICE_PROVIDER=travelpayouts
    TRAVELPAYOUTS_TOKEN=ton_token_ici
    TRAVELPAYOUTS_MARKER=ton_marker_ici
+   NEXT_PUBLIC_TRAVELPAYOUTS_MARKER=ton_marker_ici
    ```
-3. Redémarre le serveur (`npm run dev` ou `npm run build && npm start`). Les variables d'environnement ne sont lues qu'au démarrage.
+   La quatrième reprend le marker pour les liens Aviasales construits dans le navigateur (quand l'API n'en fournit pas) ; ce n'est pas un secret, il figure dans tous les liens de réservation.
+3. Redémarre le serveur (`npm run dev` ou `npm run build && npm start`). Les variables d'environnement ne sont lues qu'au démarrage, et celle en `NEXT_PUBLIC_` est figée dans le build.
 
-`.env.local` est ignoré par Git (règle `.env*` du `.gitignore`) : les clés restent sur ta machine. Sur Vercel, saisis les mêmes trois variables dans *Settings → Environment Variables*.
+`.env.local` est ignoré par Git (règle `.env*` du `.gitignore`) : les clés restent sur ta machine. Sur Vercel, saisis les mêmes quatre variables dans *Settings → Environment Variables*, puis redéploie.
 
 ## 4. Vérifier que ça marche
 

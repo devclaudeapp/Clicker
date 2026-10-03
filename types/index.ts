@@ -133,7 +133,7 @@ export interface Destination {
   scene: SceneSpec;
   /** Paysages associés, trois courtes mentions. */
   land: string[];
-  /** Tarifs de référence (mode mock, ou repli quand le fournisseur ne répond pas). */
+  /** Tarifs de référence du mode mock ; un fournisseur réel qui ne répond pas laisse simplement la destination sans vol. */
   fares: BaseFare[];
   /** Alternatives terrestres connues, par identifiant de ville de départ. */
   ground?: Record<string, Partial<Record<GroundMode, GroundEstimate>>>;
@@ -148,6 +148,8 @@ export interface Fare {
   airline: string;
   duration: string;
   direct: boolean;
+  /** Escales du trajet qui en compte le plus (aller ou retour) ; 0 = direct. */
+  stops?: number;
   /** Lien de réservation fourni par le fournisseur, s'il en donne un. */
   link?: string;
 }
@@ -164,6 +166,7 @@ export interface TransportCandidate {
   originCity?: string;
   airline?: string;
   direct?: boolean;
+  stops?: number;
   viaNearby?: boolean;
   nearbyMinutes?: number;
   /** Faux quand le mode est décoché : on le montre dans la fiche mais il ne compte pas dans le prix. */
