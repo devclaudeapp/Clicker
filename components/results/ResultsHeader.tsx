@@ -10,6 +10,8 @@ interface Props {
   onSort: (s: SortKey) => void;
   loading: boolean;
   onShare: () => void;
+  /** Tire une escapade au sort parmi celles qui restent après budget et envies ; absent quand il n'y a rien à tirer. */
+  onSurprise?: () => void;
 }
 
 const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
@@ -18,7 +20,7 @@ const VIEWS: { id: ViewMode; label: string; icon: string }[] = [
   { id: "map", label: "Carte", icon: "map" },
 ];
 
-export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loading, onShare }: Props) {
+export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loading, onShare, onSurprise }: Props) {
   return (
     <div className="results-head" style={{ opacity: loading ? 0.7 : 1, transition: "opacity .2s" }}>
       <div>
@@ -49,6 +51,12 @@ export function ResultsHeader({ title, subtitle, view, onView, sort, onSort, loa
           <Icon name="share" />
           Partager
         </button>
+        {onSurprise && (
+          <button className="btn sm primary" type="button" onClick={onSurprise} title="Ouvrir une escapade au hasard">
+            <Icon name="sparkles" />
+            Surprends-moi
+          </button>
+        )}
       </div>
     </div>
   );

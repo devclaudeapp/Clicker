@@ -184,6 +184,11 @@
   .land-tags span { display: inline-flex; align-items: center; gap: 5px; }
   .land-tags span::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--amber); }
   .empty { padding: 40px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--r); }
+  /* Cartes fantômes du premier chargement : mêmes proportions que les vraies, barres qui scintillent */
+  .skeleton .post { background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)); }
+  .skeleton .post::after { display: none; }
+  .skeleton .bar { height: 14px; border-radius: 7px; background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.16) 50%, rgba(255, 255, 255, 0.06) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   .note { font-size: 13px; color: var(--muted); }
   .note.warn { color: var(--warn); font-weight: 700; }
   .foot { padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); max-width: 70ch; }

@@ -206,6 +206,15 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     setSettingsOpen(false);
     setRailOpen(false);
   }, []);
+  // « Surprends-moi » : une escapade au hasard parmi celles dans le budget et les envies, jamais celle déjà ouverte.
+  const surprise = useCallback(() => {
+    const pool = inBudget.filter((t) => t.destination.id !== openId);
+    if (!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    showToast("On tire au sort…");
+    window.setTimeout(() => setOpenId(pick.destination.id), 450);
+  }, [inBudget, openId, showToast]);
+  const firstLoad = loading && trips.length === 0;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeAll();
@@ -287,14 +296,14 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
           />
 
           <section className="results" aria-live="polite">
-            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={setView} sort={sort} onSort={setSort} loading={loading} onShare={() => copyLink(null)} />
+            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={setView} sort={sort} onSort={setSort} loading={loading} onShare={() => copyLink(null)} onSurprise={inBudget.length > 1 ? surprise : undefined} />
             {error && <p className="note warn">{error}</p>}
             {outBudget.length > 0 && (
               <p className="note warn">
                 {outBudget.length} autre{outBudget.length > 1 ? "s" : ""} {plural(outBudget.length, "escapade")} au-dessus de {eur(prefs.budget)} (la plus proche : {outBudget[0].destination.city}, {eur(outBudget[0].perPerson)}).
               </p>
             )}
-            {view === "grid" && <TripGrid trips={shown} bestId={bestId} favs={prefs.favs} emptyMessage={emptyMessage} onOpen={setOpenId} onFav={toggleFav} />}
+            {view === "grid" && <TripGrid trips={shown} bestId={bestId} favs={prefs.favs} emptyMessage={emptyMessage} skeleton={firstLoad ? 6 : 0} onOpen={setOpenId} onFav={toggleFav} />}
             {view === "swipe" && <SwipeDeck trips={byTotal} swiped={swiped} favCount={prefs.favs.length} emptyMessage={emptyMessage} enabled={!overlayOpen} onDecide={decide} onOpen={setOpenId} onReset={() => setSwiped([])} />}
             {view === "map" && <MapView trips={byTotal.concat(outBudget)} inBudgetIds={new Set(inBudget.map((t) => t.destination.id))} bestId={bestId} favs={prefs.favs} departures={departures} onOpen={setOpenId} />}
             <p className="foot">
