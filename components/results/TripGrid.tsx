@@ -1,5 +1,6 @@
 import type { PointerEvent } from "react";
 import type { TripOption } from "@/types";
+import { prefersReducedMotion } from "@/lib/motion";
 import { TripCard } from "./TripCard";
 
 interface Props {
@@ -26,14 +27,12 @@ function SkeletonCard({ index }: { index: number }) {
   );
 }
 
-// Les requêtes média sont créées une fois ; seule leur valeur est relue à chaque mouvement.
+// La requête média est créée une fois ; seule sa valeur est relue à chaque mouvement.
 let hoverQuery: MediaQueryList | null = null;
-let motionQuery: MediaQueryList | null = null;
 const canHover = () => {
   if (typeof window === "undefined") return false;
   hoverQuery ??= window.matchMedia("(hover: hover) and (pointer: fine)");
-  motionQuery ??= window.matchMedia("(prefers-reduced-motion: reduce)");
-  return hoverQuery.matches && !motionQuery.matches;
+  return hoverQuery.matches && !prefersReducedMotion();
 };
 
 /** Grille de cartes ; au survol à la souris, la carte s'incline légèrement et un halo suit le curseur. */

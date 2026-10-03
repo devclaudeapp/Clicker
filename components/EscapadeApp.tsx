@@ -4,18 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { DeparturePoint, SearchParams, SortKey, TravelProfile, TripOption, VibeId, ViewMode } from "@/types";
 import { buildWindows, earliestDeparture, type MonthOption } from "@/lib/dates";
 import { eur, fmtLong, fmtShort, listFr, plural } from "@/lib/format";
+import { MOTION, withViewTransition } from "@/lib/motion";
 import { defaultPrefs, getPrefsSnapshot, getServerPrefsSnapshot, normalizePrefs, subscribePrefs, updatePrefs, type Prefs } from "@/lib/prefs";
 import { matchesVibes, originsFor, sortTrips } from "@/lib/pricing";
 import { encodeShare, type SharedInput } from "@/lib/share";
 import { Header } from "./Header";
 import { SearchRail, type SearchForm } from "./search/SearchRail";
 import { VibeChips } from "./search/VibeChips";
-import { MapView } from "./results/MapView";
+import { FULL_VIEW, MapView, type ViewBox } from "./results/MapView";
 import { ResultsHeader } from "./results/ResultsHeader";
 import { SwipeDeck } from "./results/SwipeDeck";
 import { TripDrawer } from "./results/TripDrawer";
 import { TripGrid } from "./results/TripGrid";
 import { DeparturesDialog } from "./settings/DeparturesDialog";
+import { Icon } from "./ui/Icon";
+import { useIsMobile } from "./ui/useMediaQuery";
+import { usePresence } from "./ui/usePresence";
 
 interface Props {
   initialDepartures: DeparturePoint[];
@@ -31,6 +35,10 @@ type DateForm = Omit<SearchForm, "travelers" | "budget" | "group" | "ages">;
 const DURATION_LABEL = { weekend: "ce week-end", long: "ce long week-end", week: "cette semaine" } as const;
 const DURATION_SHORT = { weekend: "week-end", long: "long week-end", week: "semaine" } as const;
 const DURATION_LONG = { weekend: "week-end (2 nuits)", long: "long week-end (3 nuits)", week: "semaine (7 nuits)" } as const;
+const TOAST_MS = 2000;
+
+/** Élément qui a le focus, s'il peut le reprendre à la fermeture d'une surcouche. */
+const focusedElement = (): HTMLElement | null => (typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null);
 
 export default function EscapadeApp({ initialDepartures, months, shared = {}, sharedDepartures = [] }: Props) {
   const defaults = useMemo(() => defaultPrefs(initialDepartures), [initialDepartures]);
@@ -38,6 +46,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   const prefs: Prefs = useMemo(() => normalizePrefs(stored, defaults) ?? defaults, [stored, defaults]);
   const minDate = useMemo(() => earliestDeparture(), []);
   const setPrefs = useCallback((update: (p: Prefs) => Prefs) => updatePrefs(update, defaults), [defaults]);
+  const mobile = useIsMobile();
 
   const firstFlex = useMemo(() => buildWindows({ dateMode: "flex", month: months[0].value, duration: "weekend", dateOut: "", dateIn: "" })[0], [months]);
   const [form, setForm] = useState<DateForm>(() => ({
@@ -51,22 +60,32 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
   }));
   const [vibes, setVibes] = useState<VibeId[]>(shared.vibes ?? []);
   const [view, setView] = useState<ViewMode>(shared.view ?? "grid");
+  const [mapView, setMapView] = useState<ViewBox>(FULL_VIEW);
   const [sort, setSort] = useState<SortKey>("total");
   const [onlyFavs, setOnlyFavs] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(shared.open ?? null);
   const [swiped, setSwiped] = useState<string[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; shown: boolean }>({ msg: "", shown: false });
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Un seul minuteur de toast : un nouveau message relance le compte à rebours au lieu de se faire couper.
+  const toastTimer = useRef<number | null>(null);
   const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 1800);
+    setToast({ msg, shown: true });
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast((t) => ({ ...t, shown: false })), TOAST_MS);
   }, []);
+  useEffect(
+    () => () => {
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    },
+    [],
+  );
 
   // Lien partagé : on ajoute les villes de l'expéditeur aux réglages et on active exactement celles-là, une seule fois.
   const sharedApplied = useRef(false);
@@ -191,6 +210,75 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
           : "Rien dans ce budget avec ces critères. Monte le budget ou coche d'autres transports.";
   }
 
+  // Surcouches : chacune mémorise l'élément à qui rendre le focus, et seule celle du dessus se ferme à Échap ou au clic sur le fond.
+  const trigger = useRef<HTMLElement | null>(null);
+  const restoreFocus = () => {
+    trigger.current?.focus();
+    trigger.current = null;
+  };
+  const openDrawer = useCallback((id: string) => {
+    trigger.current = focusedElement();
+    setOpenId(id);
+  }, []);
+  const closeDrawer = useCallback(() => {
+    setOpenId(null);
+    restoreFocus();
+  }, []);
+  const openSettings = () => {
+    trigger.current = focusedElement();
+    setRailOpen(false);
+    setSettingsOpen(true);
+  };
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    restoreFocus();
+  }, []);
+  const openRail = () => {
+    trigger.current = focusedElement();
+    setRailOpen(true);
+  };
+  const closeRail = useCallback(() => {
+    setRailOpen(false);
+    restoreFocus();
+  }, []);
+  const sheetOpen = railOpen && mobile;
+  const overlayOpen = sheetOpen || settingsOpen || openTrip !== null;
+  const closeTop = useCallback(() => {
+    if (settingsOpen) closeSettings();
+    else if (openId) closeDrawer();
+    else if (railOpen) closeRail();
+  }, [settingsOpen, openId, railOpen, closeSettings, closeDrawer, closeRail]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeTop();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [closeTop]);
+  // La page ne défile plus derrière une surcouche ; la largeur de la barre de défilement est compensée pour éviter un saut.
+  useEffect(() => {
+    if (!overlayOpen) return;
+    const body = document.body;
+    const gap = window.innerWidth - document.documentElement.clientWidth;
+    const prev = { overflow: body.style.overflow, padding: body.style.paddingRight };
+    body.style.overflow = "hidden";
+    if (gap > 0) body.style.paddingRight = `${gap}px`;
+    return () => {
+      body.style.overflow = prev.overflow;
+      body.style.paddingRight = prev.padding;
+    };
+  }, [overlayOpen]);
+
+  // Présence : les surcouches restent montées le temps de leur animation de sortie.
+  const backdrop = usePresence(overlayOpen, MOTION.overlay);
+  const drawer = usePresence(openTrip !== null, MOTION.overlay);
+  const settings = usePresence(settingsOpen, MOTION.component);
+  const toastPresence = usePresence(toast.shown, MOTION.component);
+  // La fiche garde sa destination pendant qu'elle se ferme.
+  const [shownId, setShownId] = useState(openId);
+  if (openId && openId !== shownId) setShownId(openId);
+  const shownTrip = openTrip ?? filtered.find((t) => t.destination.id === shownId) ?? null;
+
   // Actions
   const toggleFav = useCallback((id: string) => setPrefs((p) => ({ ...p, favs: p.favs.includes(id) ? p.favs.filter((x) => x !== id) : [...p.favs, id] })), [setPrefs]);
   const decide = useCallback(
@@ -203,33 +291,26 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     },
     [setPrefs, showToast],
   );
-  const closeAll = useCallback(() => {
-    setOpenId(null);
-    setSettingsOpen(false);
-    setRailOpen(false);
-  }, []);
   // « Surprends-moi » : une escapade au hasard parmi celles dans le budget et les envies, jamais celle déjà ouverte.
   const surprise = useCallback(() => {
     const pool = inBudget.filter((t) => t.destination.id !== openId);
     if (!pool.length) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     showToast("On tire au sort…");
-    window.setTimeout(() => setOpenId(pick.destination.id), 450);
-  }, [inBudget, openId, showToast]);
+    window.setTimeout(() => openDrawer(pick.destination.id), 450);
+  }, [inBudget, openId, showToast, openDrawer]);
   const firstLoad = loading && trips.length === 0;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeAll();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [closeAll]);
   const onFormChange = (patch: Partial<SearchForm>) => {
     const { travelers, budget, group, ages, ...rest } = patch;
     if (travelers !== undefined || budget !== undefined || group !== undefined || ages !== undefined)
       setPrefs((p) => ({ ...p, travelers: travelers ?? p.travelers, budget: budget ?? p.budget, group: group ?? p.group, ages: ages ?? p.ages }));
     if (Object.keys(rest).length) setForm((f) => ({ ...f, ...rest }));
   };
+  // Les cartes glissent vers leur nouvelle place quand les envies, le tri, les favoris ou la vue changent.
+  const toggleVibe = (id: VibeId) => withViewTransition(() => setVibes((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id])));
+  const changeSort = (s: SortKey) => withViewTransition(() => setSort(s));
+  const changeView = (v: ViewMode) => withViewTransition(() => setView(v));
+  const toggleOnlyFavs = () => withViewTransition(() => setOnlyFavs((v) => !v));
 
   // Lien de partage : l'adresse reflète toujours la recherche courante, et un bouton la copie.
   const shareQuery = useCallback(
@@ -269,20 +350,20 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
     [shareQuery, showToast],
   );
 
-  const overlayOpen = railOpen || settingsOpen || openTrip !== null;
   const profile = useMemo<TravelProfile>(() => ({ group: prefs.group, ages: prefs.ages, vibes, travelers: prefs.travelers }), [prefs.group, prefs.ages, vibes, prefs.travelers]);
   const fabWhen = form.dateMode === "flex" ? `${monthOption?.short ?? form.month} · ${DURATION_SHORT[form.duration]}` : fixedOk ? `${fmtShort(form.dateOut)} → ${fmtShort(form.dateIn)}` : "dates à corriger";
+  const exiting = (phase: "open" | "exit") => (phase === "exit" ? " is-exiting" : "");
 
   return (
     <>
-      <Header favCount={prefs.favs.length} onlyFavs={onlyFavs} onToggleFavs={() => setOnlyFavs((v) => !v)} departureLabels={depLabels} onOpenSettings={() => setSettingsOpen(true)} provider={provider} />
+      <Header favCount={prefs.favs.length} onlyFavs={onlyFavs} onToggleFavs={toggleOnlyFavs} departureLabels={depLabels} onOpenSettings={openSettings} provider={provider} />
       <main className="shell">
         <section className="hero">
           <h1>
             On part <span className="grad">où</span> {whenLabel} ?
           </h1>
           <p className="hero-sub">{depLabels.length ? `Depuis ${listFr(depLabels)}${prefs.includeNearby ? " et les alentours" : ""}, au meilleur prix, en dix secondes.` : "Choisis d'abord une ville de départ."}</p>
-          <VibeChips selected={vibes} onToggle={(id) => setVibes((v) => (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]))} />
+          <VibeChips selected={vibes} onToggle={toggleVibe} />
         </section>
 
         <div className="cols">
@@ -298,20 +379,24 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
             onIncludeNearby={(on) => setPrefs((p) => ({ ...p, includeNearby: on }))}
             nearbyInfo={prefs.includeNearby ? (nearbyCodes.length ? `Aéroports voisins inclus : ${nearbyCodes.join(", ")}.` : "Aucun aéroport voisin pour cette sélection.") : "Seuls les aéroports et gares des villes choisies."}
             open={railOpen}
-            onClose={() => setRailOpen(false)}
+            mobile={mobile}
+            onClose={closeRail}
           />
 
-          <section className="results" aria-live="polite">
-            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={setView} sort={sort} onSort={setSort} loading={loading} onShare={() => copyLink(null)} onSurprise={inBudget.length > 1 ? surprise : undefined} />
+          <section className="results">
+            <ResultsHeader title={title} subtitle={subtitle} view={view} onView={changeView} sort={sort} onSort={changeSort} loading={loading} onShare={() => copyLink(null)} onSurprise={inBudget.length > 1 ? surprise : undefined} />
             {error && <p className="note warn">{error}</p>}
             {outBudget.length > 0 && (
               <p className="note warn">
                 {outBudget.length} autre{outBudget.length > 1 ? "s" : ""} {plural(outBudget.length, "escapade")} au-dessus de {eur(prefs.budget)} (la plus proche : {outBudget[0].destination.city}, {eur(outBudget[0].perPerson)}).
               </p>
             )}
-            {view === "grid" && <TripGrid trips={shown} bestId={bestId} favs={prefs.favs} emptyMessage={emptyMessage} skeleton={firstLoad ? 6 : 0} onOpen={setOpenId} onFav={toggleFav} />}
-            {view === "swipe" && <SwipeDeck trips={byTotal} swiped={swiped} favCount={prefs.favs.length} emptyMessage={emptyMessage} enabled={!overlayOpen} onDecide={decide} onOpen={setOpenId} onReset={() => setSwiped([])} />}
-            {view === "map" && <MapView trips={byTotal.concat(outBudget)} inBudgetIds={new Set(inBudget.map((t) => t.destination.id))} bestId={bestId} favs={prefs.favs} departures={departures} onOpen={setOpenId} />}
+            {/* La vue change en fondu ; la clé remonte le contenu pour rejouer l'entrée. */}
+            <div key={view} className="view-pane">
+              {view === "grid" && <TripGrid trips={shown} bestId={bestId} favs={prefs.favs} emptyMessage={emptyMessage} skeleton={firstLoad ? 6 : 0} onOpen={openDrawer} onFav={toggleFav} />}
+              {view === "swipe" && <SwipeDeck trips={byTotal} swiped={swiped} favCount={prefs.favs.length} emptyMessage={emptyMessage} enabled={!overlayOpen} onDecide={decide} onOpen={openDrawer} onReset={() => setSwiped([])} />}
+              {view === "map" && <MapView trips={byTotal.concat(outBudget)} inBudgetIds={new Set(inBudget.map((t) => t.destination.id))} bestId={bestId} favs={prefs.favs} departures={departures} view={mapView} onView={setMapView} onOpen={openDrawer} />}
+            </div>
             <p className="foot">
               Prix indicatifs. Les boutons de réservation ouvrent de vrais liens pré-remplis (Aviasales, Google Flights, Skyscanner, SNCF Connect, BlaBlaCar, Booking, Airbnb…) : le prix final se confirme sur le site du vendeur.
             </p>
@@ -319,7 +404,7 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         </div>
       </main>
 
-      <button className="fab glass" type="button" onClick={() => setRailOpen(true)}>
+      <button className={sheetOpen ? "fab glass hide" : "fab glass"} type="button" onClick={openRail} tabIndex={sheetOpen ? -1 : 0} aria-hidden={sheetOpen}>
         <span className="sum">
           {depLabels.join(" · ") || "Aucun départ"}{" "}
           <small>
@@ -331,25 +416,28 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
         </span>
       </button>
 
-      {overlayOpen && <div className="backdrop" onClick={closeAll} />}
-      {openTrip && (
+      {backdrop.mounted && <div className={`backdrop${exiting(backdrop.phase)}`} onClick={closeTop} />}
+      {drawer.mounted && shownTrip && (
         <TripDrawer
-          trip={openTrip}
+          trip={shownTrip}
           departures={departures}
           travelers={prefs.travelers}
           profile={profile}
           flexible={form.dateMode === "flex"}
-          fav={prefs.favs.includes(openTrip.destination.id)}
+          fav={prefs.favs.includes(shownTrip.destination.id)}
+          phase={drawer.phase}
+          mobile={mobile}
           onFav={toggleFav}
-          onClose={() => setOpenId(null)}
+          onClose={closeDrawer}
           onToast={showToast}
-          onShareLink={() => copyLink(openTrip.destination.id)}
+          onShareLink={() => copyLink(shownTrip.destination.id)}
         />
       )}
-      {settingsOpen && (
+      {settings.mounted && (
         <DeparturesDialog
           saved={prefs.saved}
           excludedNearby={prefs.excludedNearby}
+          phase={settings.phase}
           onToggleNearby={(iata) => setPrefs((p) => ({ ...p, excludedNearby: p.excludedNearby.includes(iata) ? p.excludedNearby.filter((x) => x !== iata) : [...p.excludedNearby, iata] }))}
           onRemove={(id) => setPrefs((p) => ({ ...p, saved: p.saved.filter((d) => d.id !== id), activeIds: p.activeIds.filter((x) => x !== id) }))}
           onAdd={(dep) => {
@@ -358,12 +446,13 @@ export default function EscapadeApp({ initialDepartures, months, shared = {}, sh
             );
             showToast(`${dep.label} ajoutée`);
           }}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
         />
       )}
-      {toast && (
-        <div className="toast glass-3" role="status">
-          {toast}
+      {toastPresence.mounted && (
+        <div className={`toast glass-3${exiting(toastPresence.phase)}`} role="status">
+          {toast.msg.includes("copié") && <Icon name="check" />}
+          {toast.msg}
         </div>
       )}
     </>

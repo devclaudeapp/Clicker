@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { TripOption } from "@/types";
 import { eur } from "@/lib/format";
+import { prefersReducedMotion } from "@/lib/motion";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
 import { LandTags, StayLine, TempTag, TransportLine, TripTags, VibeIcons } from "./TripBits";
@@ -18,7 +19,6 @@ interface Props {
 }
 
 const THRESHOLD = 110;
-const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Pile de cartes à glisser : à droite on garde (favori), à gauche on passe. Flèches du clavier aussi. */
 export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDecide, onOpen, onReset }: Props) {
@@ -37,7 +37,7 @@ export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDe
     window.setTimeout(() => {
       setLeaving(null);
       onDecide(topId, dir);
-    }, reduced() ? 0 : 340);
+    }, prefersReducedMotion() ? 0 : 340);
   };
 
   // Flèches du clavier : l'écouteur est posé une fois, mais lit toujours la carte du dessus courante.
@@ -90,7 +90,9 @@ export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDe
           .map((t, i) => {
             const d = t.destination;
             const isTop = i === 0;
-            const style: React.CSSProperties = isTop ? topStyle() : { transform: `translateY(${i * 16}px) scale(${1 - i * 0.05})`, opacity: i === 2 ? 0.7 : 1, zIndex: 10 - i };
+            // La carte suivante monte et grossit à mesure que celle du dessus s'écarte : elle prend sa place sans à-coup.
+            const lift = i === 1 ? k : 0;
+            const style: React.CSSProperties = isTop ? topStyle() : { transform: `translateY(${(i - lift) * 16}px) scale(${1 - (i - lift) * 0.05})`, opacity: i === 2 ? 0.7 : 1, zIndex: 10 - i };
             return (
               <article
                 key={d.id}

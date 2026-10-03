@@ -26,7 +26,10 @@ export function Header({ favCount, onlyFavs, onToggleFavs, departureLabels, onOp
         <nav>
           <button className={onlyFavs ? "btn sm on" : "btn sm"} type="button" aria-pressed={onlyFavs} onClick={onToggleFavs} aria-label="Afficher seulement les favoris">
             <Icon name="heart" />
-            <span className="num">{favCount}</span>
+            {/* La clé remonte le compteur à chaque changement : il rebondit. */}
+            <span className="num" key={favCount}>
+              {favCount}
+            </span>
           </button>
           <button className="btn sm" type="button" onClick={onOpenSettings} title="Villes de départ">
             <Icon name="pin" />

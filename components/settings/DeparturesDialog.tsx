@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { DeparturePoint } from "@/types";
 import { minutesLabel } from "@/lib/format";
 import { Icon } from "../ui/Icon";
+import { useFocusTrap } from "../ui/useFocusTrap";
+import type { PresencePhase } from "../ui/usePresence";
 
 interface Props {
   saved: DeparturePoint[];
   excludedNearby: string[];
+  /** « exit » pendant l'animation de fermeture. */
+  phase: PresencePhase;
   onToggleNearby: (iata: string) => void;
   onRemove: (id: string) => void;
   onAdd: (dep: DeparturePoint) => void;
@@ -18,13 +22,15 @@ interface Suggestion {
 }
 
 /** Villes de départ : aéroports principaux, voisins à ~2 h (cochables), gares ; ajout d'une ville par recherche. */
-export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemove, onAdd, onClose }: Props) {
+export function DeparturesDialog({ saved, excludedNearby, phase, onToggleNearby, onRemove, onAdd, onClose }: Props) {
   const [query, setQuery] = useState("");
   // Les suggestions sont marquées de la saisie qui les a produites : on n'affiche jamais celles d'une saisie précédente.
   const [suggestions, setSuggestions] = useState<{ q: string; items: Suggestion[] }>({ q: "", items: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(boxRef, phase === "open");
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -69,7 +75,7 @@ export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemo
 
   return (
     <div
-      className="modal"
+      className={phase === "exit" ? "modal is-exiting" : "modal"}
       role="dialog"
       aria-modal="true"
       aria-labelledby="settings-title"
@@ -77,7 +83,7 @@ export function DeparturesDialog({ saved, excludedNearby, onToggleNearby, onRemo
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-box glass-3">
+      <div className="modal-box glass-3" ref={boxRef}>
         <div className="drawer-head">
           <div>
             <h2 id="settings-title" style={{ fontSize: 22 }}>

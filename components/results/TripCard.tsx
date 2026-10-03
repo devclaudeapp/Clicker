@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TripOption } from "@/types";
 import { eur } from "@/lib/format";
+import { prefersReducedMotion } from "@/lib/motion";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
 import { StayLine, TempTag, TransportLine, TripTags, VibeIcons } from "./TripBits";
@@ -14,8 +15,6 @@ interface Props {
   onFav: (id: string) => void;
 }
 
-const reduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 /** Fait défiler le prix de l'ancienne valeur à la nouvelle quand les critères changent. */
 function usePriceCountUp(value: number) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -24,7 +23,7 @@ function usePriceCountUp(value: number) {
     const el = ref.current;
     const from = prev.current;
     prev.current = value;
-    if (!el || from == null || from === value || reduced()) return;
+    if (!el || from == null || from === value || prefersReducedMotion()) return;
     const t0 = performance.now();
     const dur = 520;
     let raf = 0;
@@ -44,7 +43,8 @@ export function TripCard({ trip, isBest, fav, index, onOpen, onFav }: Props) {
   const d = trip.destination;
   const priceRef = usePriceCountUp(trip.perPerson);
   return (
-    <article className={isBest ? "card glass best" : "card glass"} data-id={d.id} style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
+    // Le nom de transition de vue permet à la carte de glisser vers sa nouvelle place quand la grille se réordonne.
+    <article className={isBest ? "card glass best" : "card glass"} data-id={d.id} style={{ animationDelay: `${Math.min(index, 8) * 35}ms`, viewTransitionName: `card-${d.id}` }}>
       <div className="post">
         <Scene dest={d} />
         <TempTag temp={trip.temp} />

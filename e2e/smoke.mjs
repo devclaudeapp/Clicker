@@ -18,9 +18,10 @@ const check = (label, ok, detail = "") => {
   if (!ok) problems.push(label);
 };
 
-async function session(name, viewport, steps) {
+/** Par défaut les sessions tournent sans animation (mouvement réduit) ; `motion: true` les joue pour vérifier les sorties. */
+async function session(name, viewport, steps, { motion = false } = {}) {
   const mobile = viewport.width < 600;
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: mobile, isMobile: mobile, locale: "fr-FR", reducedMotion: "reduce", permissions: ["clipboard-read", "clipboard-write"] });
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, hasTouch: mobile, isMobile: mobile, locale: "fr-FR", reducedMotion: motion ? "no-preference" : "reduce", permissions: ["clipboard-read", "clipboard-write"] });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => problems.push(`[${name}] erreur de page : ${e.message}`));
   page.on("console", (m) => {
@@ -181,6 +182,62 @@ await session("mobile", { width: 390, height: 844 }, async (page) => {
   check("mobile : pas de débordement (fiche)", (await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) === 0);
   await page.screenshot({ path: join(OUT, "mobile-fiche.png") });
 });
+
+// Avec les animations : les surcouches ont une vraie sortie, courte, qui ne bloque rien.
+await session("mouvement", { width: 1360, height: 900 }, async (page) => {
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await waitCards(page);
+  await page.locator(".card .btn").first().click();
+  await page.waitForSelector(".drawer");
+  await page.waitForTimeout(500);
+  const t0 = Date.now();
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".drawer", { state: "detached", timeout: 3000 });
+  const closeMs = Date.now() - t0;
+  // Animation de 420 ms, plus le rendu et le sondage de Playwright : sous une seconde, la fermeture est nette.
+  check("mouvement : la fiche se referme en moins d'une seconde", closeMs < 1000, `${closeMs} ms`);
+  await page.locator(".card .btn").nth(1).click({ timeout: 2000 });
+  await page.waitForSelector(".drawer");
+  check("mouvement : le fond ne bloque pas le clic suivant", true);
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".drawer", { state: "detached" });
+  await page.getByRole("button", { name: "Partager" }).click();
+  await page.waitForSelector(".toast");
+  await page.waitForSelector(".toast", { state: "detached", timeout: 4000 });
+  check("mouvement : le toast disparaît seul", true);
+  await page.locator("header nav button").last().click();
+  await page.waitForSelector(".modal");
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".modal", { state: "detached", timeout: 2000 });
+  check("mouvement : les réglages se referment avec Échap", true);
+}, { motion: true });
+
+await session("mouvement mobile", { width: 390, height: 844 }, async (page) => {
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type, touchPoints) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+  const dragDown = async (box, dist) => {
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await touch("touchStart", [{ x, y }]);
+    for (let i = 1; i <= 8; i++) await touch("touchMove", [{ x, y: y + (dist * i) / 8 }]);
+    await touch("touchEnd", []);
+  };
+  await page.goto(BASE, { waitUntil: "networkidle" });
+  await waitCards(page);
+  await page.locator(".fab").click();
+  await page.waitForTimeout(600);
+  check("mobile : le bouton flottant s'efface derrière la feuille", (await page.locator(".fab.hide").count()) === 1);
+  await dragDown(await page.locator(".rail .sheet-head").first().boundingBox(), 220);
+  await page.waitForFunction(() => !document.querySelector(".rail.open"), null, { timeout: 2000 });
+  check("mobile : tirer la poignée referme la feuille de recherche", true);
+  await page.waitForTimeout(600);
+  await page.locator(".card .btn").first().click();
+  await page.waitForSelector(".drawer");
+  await page.waitForTimeout(600);
+  await dragDown(await page.locator(".drawer .grip").boundingBox(), 220);
+  await page.waitForSelector(".drawer", { state: "detached", timeout: 3000 });
+  check("mobile : tirer la poignée referme la fiche", true);
+}, { motion: true });
 
 await browser.close();
 const summary = [...report, ...problems.map((p) => `✗ ${p}`)].join("\n");

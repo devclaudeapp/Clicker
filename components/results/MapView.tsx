@@ -1,12 +1,20 @@
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { DeparturePoint, TripOption } from "@/types";
 import { eur, fmtShort } from "@/lib/format";
 import { arcPath, MAP, project } from "@/lib/geo";
+import { MOTION, prefersReducedMotion } from "@/lib/motion";
 import { originOf } from "@/lib/pricing";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
 import { LandTags, MODE_LABEL, TempTag } from "./TripBits";
 import { getLandPath } from "./MiniMap";
+
+export interface ViewBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 interface Props {
   trips: TripOption[];
@@ -14,18 +22,17 @@ interface Props {
   bestId: string | null;
   favs: string[];
   departures: DeparturePoint[];
+  /** Cadrage courant, tenu par le parent pour survivre aux changements de vue. */
+  view: ViewBox;
+  onView: Dispatch<SetStateAction<ViewBox>>;
   onOpen: (id: string) => void;
 }
 
-interface ViewBox {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-const FULL: ViewBox = { x: 0, y: 0, w: MAP.W, h: MAP.H };
+export const FULL_VIEW: ViewBox = { x: 0, y: 0, w: MAP.W, h: MAP.H };
 const MIN_W = MAP.W / 8;
 const MAX_W = MAP.W * 1.2;
+/** Délai avant que l'info-bulle ne se ferme quand la souris quitte la carte. */
+const LEAVE_MS = 150;
 const canHover = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 function clamp(v: ViewBox): ViewBox {
@@ -38,16 +45,18 @@ function zoomAt(v: ViewBox, px: number, py: number, f: number): ViewBox {
   const rf = v.w / nw;
   return clamp({ x: px - (px - v.x) / rf, y: py - (py - v.y) / rf, w: nw, h: (nw * MAP.H) / MAP.W });
 }
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /** Carte vectorielle : bulles de prix, arc depuis l'aéroport réellement utilisé, zoom à la molette, au pincement et aux boutons. */
-export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }: Props) {
+export function MapView({ trips, inBudgetIds, bestId, favs, departures, view, onView, onOpen }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<ViewBox>(FULL);
   const [active, setActive] = useState<string | null>(null);
   const pts = useRef(new Map<number, { x: number; y: number }>());
   const moved = useRef(0);
+  const leaveTimer = useRef<number | null>(null);
+  const anim = useRef<number | null>(null);
   const k = view.w / MAP.W;
 
   /** Convertit un point écran en coordonnées SVG (préservation « meet » : la carte est centrée dans sa boîte). */
@@ -64,7 +73,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
   const onWheel = useEffectEvent((e: WheelEvent) => {
     e.preventDefault();
     const [px, py] = svgPoint(e.clientX, e.clientY);
-    setView((v) => zoomAt(v, px, py, Math.pow(1.0015, -e.deltaY)));
+    onView((v) => zoomAt(v, px, py, Math.pow(1.0015, -e.deltaY)));
   });
   useEffect(() => {
     const svg = svgRef.current;
@@ -73,6 +82,30 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
     svg.addEventListener("wheel", handler, { passive: false });
     return () => svg.removeEventListener("wheel", handler);
   }, []);
+  useEffect(
+    () => () => {
+      if (anim.current) cancelAnimationFrame(anim.current);
+      if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
+    },
+    [],
+  );
+
+  /** Les boutons de zoom glissent vers le nouveau cadrage au lieu de sauter (immédiat en mouvement réduit). */
+  const animateTo = (target: ViewBox) => {
+    if (anim.current) cancelAnimationFrame(anim.current);
+    if (prefersReducedMotion()) {
+      onView(target);
+      return;
+    }
+    const from = view;
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const p = easeOut(Math.min(1, (now - t0) / MOTION.component));
+      onView({ x: from.x + (target.x - from.x) * p, y: from.y + (target.y - from.y) * p, w: from.w + (target.w - from.w) * p, h: from.h + (target.h - from.h) * p });
+      if (p < 1) anim.current = requestAnimationFrame(step);
+    };
+    anim.current = requestAnimationFrame(step);
+  };
 
   const activeTrip = trips.find((t) => t.destination.id === active) ?? null;
 
@@ -98,6 +131,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if ((e.target as Element).closest(".mk")) return;
+    if (anim.current) cancelAnimationFrame(anim.current);
     e.currentTarget.setPointerCapture(e.pointerId);
     pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.current.size === 1) moved.current = 0;
@@ -109,7 +143,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
     if (pts.current.size === 1) {
       const s = svgPoint(cur.x, cur.y)[2];
       moved.current += Math.abs(cur.x - prev.x) + Math.abs(cur.y - prev.y);
-      setView((v) => clamp({ ...v, x: v.x - (cur.x - prev.x) * s, y: v.y - (cur.y - prev.y) * s }));
+      onView((v) => clamp({ ...v, x: v.x - (cur.x - prev.x) * s, y: v.y - (cur.y - prev.y) * s }));
     } else if (pts.current.size === 2) {
       const other = [...pts.current.entries()].find(([id]) => id !== e.pointerId)![1];
       const d0 = Math.hypot(prev.x - other.x, prev.y - other.y);
@@ -118,7 +152,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
       const pmid = [(prev.x + other.x) / 2, (prev.y + other.y) / 2];
       const [px, py, s] = svgPoint(mid[0], mid[1]);
       moved.current = 99;
-      setView((v) => {
+      onView((v) => {
         const z = zoomAt(v, px, py, d1 / (d0 || 1));
         return clamp({ ...z, x: z.x - (mid[0] - pmid[0]) * s, y: z.y - (mid[1] - pmid[1]) * s });
       });
@@ -130,11 +164,20 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
     pts.current.delete(e.pointerId);
     if (pts.current.size === 0 && moved.current < 6 && active) setActive(null);
   };
+  /** Ouvrir la fiche referme l'info-bulle : au retour, la carte est nette. */
+  const open = (id: string) => {
+    setActive(null);
+    onOpen(id);
+  };
   const onMarkerClick = (id: string) => {
-    if (canHover() || active === id) onOpen(id);
+    if (canHover() || active === id) open(id);
     else setActive(id);
   };
-  const center = (f: number) => setView((v) => zoomAt(v, v.x + v.w / 2, v.y + v.h / 2, f));
+  const center = (f: number) => animateTo(zoomAt(view, view.x + view.w / 2, view.y + view.h / 2, f));
+  const cancelLeave = () => {
+    if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = null;
+  };
 
   let overlay: React.ReactNode = null;
   if (activeTrip) {
@@ -145,9 +188,11 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
     overlay = (
       <>
         <path className={o.ground ? "arc ground" : "arc"} d={p} />
-        <circle r={(5 * k).toFixed(2)} fill="#fff">
-          <animateMotion dur="2.4s" repeatCount="indefinite" path={p} />
-        </circle>
+        {!prefersReducedMotion() && (
+          <circle r={(5 * k).toFixed(2)} fill="#fff">
+            <animateMotion dur="2.4s" repeatCount="indefinite" path={p} />
+          </circle>
+        )}
         {activeTrip.best.mode === "plane" && activeTrip.best.viaNearby && (
           <g className="origin" transform={`translate(${x1.toFixed(1)},${y1.toFixed(1)}) scale(${k.toFixed(3)})`}>
             <circle r={5} />
@@ -161,7 +206,17 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
   }
 
   return (
-    <div className="map-wrap glass" ref={wrapRef}>
+    <div
+      className="map-wrap glass"
+      ref={wrapRef}
+      onPointerEnter={cancelLeave}
+      onPointerLeave={() => {
+        // À la souris, l'info-bulle se referme peu après que le curseur a quitté la carte.
+        if (!canHover() || !active) return;
+        cancelLeave();
+        leaveTimer.current = window.setTimeout(() => setActive(null), LEAVE_MS);
+      }}
+    >
       <svg
         ref={svgRef}
         className={view.w < MAP.W / 1.8 ? "map zoomed" : "map"}
@@ -200,7 +255,23 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
             const w = 16 + label.length * 7.5;
             const cls = ["mk", inBudgetIds.has(d.id) ? "" : "dim", d.id === bestId ? "best" : "", favs.includes(d.id) ? "fav" : "", active === d.id ? "active" : ""].filter(Boolean).join(" ");
             return (
-              <g key={d.id} className={cls} data-id={d.id} transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k.toFixed(3)})`} onClick={() => onMarkerClick(d.id)}>
+              <g
+                key={d.id}
+                className={cls}
+                data-id={d.id}
+                transform={`translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k.toFixed(3)})`}
+                role="button"
+                tabIndex={0}
+                aria-label={`${d.city}, ${label} par personne`}
+                onClick={() => onMarkerClick(d.id)}
+                onFocus={() => setActive(d.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    open(d.id);
+                  }
+                }}
+              >
                 <circle className="dot" r={4.5} />
                 <g transform="translate(0,-22)">
                   <rect x={(-w / 2).toFixed(1)} y={-13} width={w.toFixed(1)} height={26} rx={13} />
@@ -223,7 +294,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
         <button className="glass-3" type="button" aria-label="Dézoomer" onClick={() => center(1 / 1.5)}>
           −
         </button>
-        <button className="glass-3" type="button" aria-label="Recentrer" onClick={() => setView(FULL)}>
+        <button className="glass-3" type="button" aria-label="Recentrer" onClick={() => animateTo(FULL_VIEW)}>
           <Icon name="reset" />
         </button>
       </div>
@@ -247,7 +318,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, onOpen }
               {activeTrip.best.mode === "plane" ? `vol ${activeTrip.best.airline} depuis ${activeTrip.best.origin}` : `${MODE_LABEL[activeTrip.best.mode]} depuis ${activeTrip.best.originLabel}`}
             </p>
             <LandTags dest={activeTrip.destination} />
-            <button className="btn sm primary" type="button" onClick={() => onOpen(activeTrip.destination.id)}>
+            <button className="btn sm primary" type="button" onClick={() => open(activeTrip.destination.id)}>
               Voir le séjour
             </button>
           </div>

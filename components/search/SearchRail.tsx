@@ -3,6 +3,7 @@ import type { MonthOption } from "@/lib/dates";
 import { AGES, GROUPS } from "@/lib/data/profile";
 import { eur } from "@/lib/format";
 import { Icon } from "../ui/Icon";
+import { useSheetDrag } from "../ui/useSheetDrag";
 
 /** Champs du formulaire de recherche (hors villes de départ et envies, gérés à part). */
 export interface SearchForm {
@@ -32,6 +33,8 @@ interface Props {
   onIncludeNearby: (on: boolean) => void;
   nearbyInfo: string;
   open: boolean;
+  /** Mise en page téléphone : le rail est une feuille du bas, fermée par défaut et hors d'atteinte du clavier. */
+  mobile: boolean;
   onClose: () => void;
 }
 
@@ -42,8 +45,11 @@ const TRANSPORTS: { mode: TransportMode; label: string }[] = [
   { mode: "car", label: "Covoit'" },
 ];
 
-export function SearchRail({ form, onChange, months, minDate, saved, activeIds, onToggleDeparture, includeNearby, onIncludeNearby, nearbyInfo, open, onClose }: Props) {
+export function SearchRail({ form, onChange, months, minDate, saved, activeIds, onToggleDeparture, includeNearby, onIncludeNearby, nearbyInfo, open, mobile, onClose }: Props) {
   const pct = ((form.budget - 100) / 900) * 100;
+  const drag = useSheetDrag(onClose, mobile && open);
+  // Fermée, la feuille suit sa transition CSS ; ouverte, elle suit le doigt pendant le geste.
+  const dy = open ? drag.dy : 0;
   // Solo et couple fixent le nombre de voyageurs ; une tranche d'âge au moins reste cochée.
   const pickGroup = (g: (typeof GROUPS)[number]) => onChange(g.travelers ? { group: g.id, travelers: g.travelers } : { group: g.id });
   const toggleAge = (id: AgeBand) => {
@@ -51,11 +57,16 @@ export function SearchRail({ form, onChange, months, minDate, saved, activeIds, 
     if (next.length) onChange({ ages: next });
   };
   return (
-    <aside className={open ? "rail glass open" : "rail glass"} aria-label="Recherche">
-      <div className="sheet-head">
+    <aside
+      className={`rail glass${open ? " open" : ""}${drag.dragging ? " dragging" : ""}`}
+      aria-label="Recherche"
+      inert={mobile && !open}
+      style={{ transform: dy ? `translateY(${dy}px)` : undefined }}
+    >
+      <div className="sheet-head" {...drag.handlers}>
         <span className="handle" aria-hidden="true" />
       </div>
-      <div className="sheet-head">
+      <div className="sheet-head" {...drag.handlers}>
         <strong>Ma recherche</strong>
         <button className="btn sm close" type="button" aria-label="Fermer" onClick={onClose}>
           ✕

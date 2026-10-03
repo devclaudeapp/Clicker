@@ -7,6 +7,9 @@ import { photoCredit, photoFor } from "@/lib/photos";
 import { originOf } from "@/lib/pricing";
 import { Icon } from "../ui/Icon";
 import { Scene } from "../ui/Scene";
+import { useFocusTrap } from "../ui/useFocusTrap";
+import type { PresencePhase } from "../ui/usePresence";
+import { useSheetDrag } from "../ui/useSheetDrag";
 import { Itinerary, useItinerary } from "./Itinerary";
 import { MiniMap } from "./MiniMap";
 import { LandTags, MODE_LABEL, TempTag } from "./TripBits";
@@ -18,6 +21,10 @@ interface Props {
   profile: TravelProfile;
   flexible: boolean;
   fav: boolean;
+  /** « exit » pendant l'animation de fermeture, le temps que le parent démonte la fiche. */
+  phase: PresencePhase;
+  /** Feuille du bas (téléphone) : on peut la tirer vers le bas pour la refermer. */
+  mobile: boolean;
   onFav: (id: string) => void;
   onClose: () => void;
   onToast: (msg: string) => void;
@@ -33,7 +40,7 @@ function Ext({ href, label, primary }: { href: string; label: string; primary?: 
 }
 
 /** Fiche complète d'une escapade : paysage, trajet, budget, vols, alternatives terrestres, hébergement. */
-export function TripDrawer({ trip, departures, travelers, profile, flexible, fav, onFav, onClose, onToast, onShareLink }: Props) {
+export function TripDrawer({ trip, departures, travelers, profile, flexible, fav, phase, mobile, onFav, onClose, onToast, onShareLink }: Props) {
   const d = trip.destination;
   const w = trip.window;
   const a = travelers;
@@ -44,10 +51,13 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
   // Les objets viennent du JSON de l'API : on reconnaît le transport retenu par ses clés, pas par identité.
   const isBest = (c: TransportCandidate) => c.mode === trip.best.mode && c.depId === trip.best.depId && c.origin === trip.best.origin;
   const closeRef = useRef<HTMLButtonElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
   const firstDep = departures[0];
   const plan = useItinerary(trip, profile);
   const activities = plan.itinerary ? plan.itinerary.costPerPerson * a : null;
   const photo = photoFor(d.id);
+  useFocusTrap(asideRef, phase === "open");
+  const drag = useSheetDrag(onClose, mobile && phase === "open");
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -63,9 +73,19 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
   const flightLink = (origin: string) => ({ origin, destination: d.iata, out: w.out, ret: w.ret, adults: a, marker: process.env.NEXT_PUBLIC_TRAVELPAYOUTS_MARKER || undefined });
 
   return (
-    <aside className="drawer glass-3" aria-label={`Séjour à ${d.city}`}>
+    <aside
+      className={`drawer glass-3${drag.dragging ? " dragging" : ""}${phase === "exit" ? " is-exiting" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Séjour à ${d.city}`}
+      ref={asideRef}
+      // Pendant le geste, la feuille suit le doigt ; à la fermeture, l'animation de sortie repart de là (--dy).
+      style={{ transform: drag.dy ? `translateY(${drag.dy}px)` : undefined, "--dy": `${drag.dy}px` } as React.CSSProperties}
+    >
       <div className="drawer-inner">
-        <span className="handle" aria-hidden="true" />
+        <div className="grip" {...drag.handlers}>
+          <span className="handle" aria-hidden="true" />
+        </div>
         <div className="hero-post">
           <Scene dest={d} width={1280} />
           <TempTag temp={trip.temp} />
