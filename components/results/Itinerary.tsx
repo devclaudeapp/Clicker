@@ -5,7 +5,7 @@ import { AGE_LABEL, GROUP_LABEL } from "@/lib/data/profile";
 import { VIBE_BY_ID } from "@/lib/data/vibes";
 import { eur, listFr, plural } from "@/lib/format";
 import { LINKS } from "@/lib/links";
-import { PRICE_LABEL, SLOT_ORDER, itineraryToText } from "@/lib/planner";
+import { PRICE_LABEL, SLOT_ORDER, activityOptions, itineraryToText } from "@/lib/planner";
 import { Icon } from "../ui/Icon";
 
 const SLOT_LABEL: Record<DaySlot, string> = { morning: "Matin", afternoon: "Après-midi", evening: "Soir" };
@@ -75,13 +75,27 @@ export function useItinerary(trip: TripOption, profile: TravelProfile): Itinerar
 const hoursLabel = (h: number): string => (h >= 6 ? "la journée" : h % 1 ? `${Math.floor(h)} h 30` : `${h} h`);
 
 function ActivityRow({ a, city, slot }: { a: Activity; city: string; slot?: DaySlot }) {
+  // Une activité à alternative (« Paddle ou kayak ») reçoit un lien par option : une recherche sur le nom entier ne trouve rien.
+  const options = activityOptions(a);
+  const several = options.length > 1;
   return (
     <li className="act">
       {slot && <span className="when">{SLOT_LABEL[slot]}</span>}
       <div className="what">
-        <a href={LINKS.maps(a.query ?? a.name, city)} target="_blank" rel="noopener" className="name">
-          {a.name} <Icon name="pin" />
-        </a>
+        {several ? (
+          <span className="name">
+            {a.name}
+            {options.map((o) => (
+              <a key={o} href={LINKS.maps(o, city)} target="_blank" rel="noopener" className="opt-link" title={`${o} sur Google Maps`}>
+                {o} <Icon name="pin" />
+              </a>
+            ))}
+          </span>
+        ) : (
+          <a href={LINKS.maps(options[0], city)} target="_blank" rel="noopener" className="name">
+            {a.name} <Icon name="pin" />
+          </a>
+        )}
         <p className="blurb">{a.blurb}</p>
         <div className="meta">
           <span className="tag">{KIND_LABEL[a.kind]}</span>
@@ -89,11 +103,12 @@ function ActivityRow({ a, city, slot }: { a: Activity; city: string; slot?: DayS
             <Icon name="clock" /> {hoursLabel(a.hours)}
           </span>
           <span className={a.price ? "tag" : "tag free"}>{PRICE_LABEL[a.price]}</span>
-          {a.bookable && (
-            <a className="tag book" href={LINKS.getYourGuide(a.name, city)} target="_blank" rel="noopener">
-              <Icon name="ticket" /> Réserver
-            </a>
-          )}
+          {a.bookable &&
+            options.map((o) => (
+              <a key={o} className="tag book" href={LINKS.getYourGuide(o, city)} target="_blank" rel="noopener">
+                <Icon name="ticket" /> {several ? `Réserver : ${o.toLowerCase()}` : "Réserver"}
+              </a>
+            ))}
         </div>
       </div>
     </li>

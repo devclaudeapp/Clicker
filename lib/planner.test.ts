@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TravelProfile } from "@/types";
 import { ACTIVITIES_BY_DEST } from "./data/activities";
 import { DESTINATIONS } from "./data/destinations";
-import { itineraryToText, planTrip, scoreActivity, slotsForDay } from "./planner";
+import { itineraryToText, planTrip, scoreActivity, slotsForDay, activityOptions } from "./planner";
 
 const friends: TravelProfile = { group: "friends", ages: ["young"], vibes: ["party", "beach"], travelers: 4 };
 const family: TravelProfile = { group: "family", ages: ["kids", "adults"], vibes: ["sun", "nature"], travelers: 4 };
@@ -120,5 +120,15 @@ describe("planTrip", () => {
     expect(txt.startsWith("Programme à Barcelone")).toBe(true);
     expect(txt).toContain("Samedi");
     expect(txt).toContain("Activités : ~");
+  });
+});
+
+describe("activityOptions", () => {
+  it("découpe une alternative « X ou Y » en une option par choix, capitalisée", () => {
+    expect(activityOptions({ name: "Paddle ou kayak" })).toEqual(["Paddle", "Kayak"]);
+    expect(activityOptions({ name: "Kayak sur le Guadalquivir" })).toEqual(["Kayak sur le Guadalquivir"]);
+  });
+  it("une requête explicite prime et n'est jamais découpée", () => {
+    expect(activityOptions({ name: "Paddle ou kayak", query: "Location kayak plage de Nice" })).toEqual(["Location kayak plage de Nice"]);
   });
 });

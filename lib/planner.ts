@@ -1,6 +1,16 @@
 import type { Activity, ActivityKind, DaySlot, Itinerary, PlanDay, PlanSlot, TravelProfile } from "@/types";
 import { addDays, hash, parseISO, toISO } from "./format";
 
+/**
+ * Ce qu'on cherche sur une carte ou un site de réservation pour une activité : la requête explicite s'il y en a une,
+ * sinon le nom, découpé quand il propose une alternative (« Paddle ou kayak » → « Paddle », « Kayak »).
+ */
+export function activityOptions(a: Pick<Activity, "name" | "query">): string[] {
+  if (a.query) return [a.query];
+  const parts = a.name.split(/\s+ou\s+/i).map((s) => s.trim()).filter(Boolean);
+  return parts.length > 1 ? parts.map((s) => s.charAt(0).toUpperCase() + s.slice(1)) : [a.name];
+}
+
 /** Prix indicatif par personne pour chaque niveau du catalogue. */
 export const PRICE_LEVEL = [0, 10, 25, 60] as const;
 export const PRICE_LABEL = ["gratuit", "~10 €", "~25 €", "~60 €"] as const;

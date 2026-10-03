@@ -306,6 +306,9 @@
   .act .name { font-weight: 800; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; color: var(--fg); }
   .act .name:hover { text-decoration: underline; }
   .act .name svg { width: 14px; height: 14px; color: var(--muted); }
+  /* Activité à alternative (« Paddle ou kayak ») : un lien Google Maps par option, après le nom. */
+  .act .name .opt-link { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; }
+  .act .name .opt-link:hover { color: var(--fg); text-decoration: underline; }
   .act .blurb { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
   .act.free .when { color: var(--muted); }
   .act.free .blurb { font-style: italic; }

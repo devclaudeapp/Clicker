@@ -154,7 +154,7 @@ export const ACTIVITIES_A: Activity[] = [
   act("nce", "chateau", "Colline du Château", "Cascade et panorama sur la baie des Anges, ascenseur gratuit.", "viewpoint", ["city", "love", "nature"]),
   act("nce", "saleya", "Marché du Cours Saleya", "Fleurs, olives et pissaladière ; brocante le lundi.", "market", ["food"]),
   act("nce", "eze", "Èze et Villefranche", "Village perché, jardin exotique et baie de Villefranche à vingt minutes.", "daytrip", ["nature", "love"], { hours: 5, price: 1 }),
-  act("nce", "paddle", "Paddle ou kayak", "Depuis la plage ou le cap de Nice, criques à l'arrivée.", "sport", ["sun", "friends", "nature"]),
+  act("nce", "paddle", "Paddle ou kayak", "Depuis la plage ou le cap de Nice, criques à l'arrivée.", "sport", ["sun", "friends", "nature"], { price: 2, bookable: true }),
   act("nce", "bars", "Bars du Vieux-Nice", "Terrasses de la place Rossetti puis le port Lympia.", "nightlife", ["party", "friends"], { price: 1 }),
   act("nce", "chagall", "Musées Chagall et Matisse", "Deux musées à Cimiez, avec les oliviers du parc entre les deux.", "museum", ["culture"]),
   act("nce", "monaco", "Monaco", "Vingt minutes de train : virage du casino, Rocher et jardin exotique.", "daytrip", ["city", "culture"], { hours: 5, price: 0 }),
