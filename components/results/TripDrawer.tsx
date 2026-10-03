@@ -231,6 +231,11 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
                       </>
                     )}
                   </div>
+                  {g.mode === "train" && a > 1 && (
+                    <div className="opt-row">
+                      <span className="est">Nombre de voyageurs à régler sur le site : les liens ouvrent pour 1 personne.</span>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -243,6 +248,11 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
                 <Ext href={LINKS.flixbus(firstDep.en, d.en, w.out, w.ret, a)} label="FlixBus" />
                 <Ext href={LINKS.blablacar(firstDep.label, d.city, w.out, a)} label="BlaBlaCar" />
               </div>
+              {a > 1 && (
+                <div className="opt-row">
+                  <span className="est">Train : nombre de voyageurs à régler sur le site, les liens ouvrent pour 1 personne.</span>
+                </div>
+              )}
             </div>
           )}
           <div className="links" style={{ marginTop: 10 }}>
