@@ -61,6 +61,7 @@ export function TripCard({ trip, isBest, fav, index, onOpen, onFav }: Props) {
         </div>
       </div>
       <div className="price">
+        {trip.estimated && <span className="approx">~</span>}
         <span className="big num" ref={priceRef}>
           {eur(trip.perPerson)}
         </span>

@@ -46,7 +46,7 @@ function quote(p: SearchParams, dest: Destination, w: DateWindow, origins: Map<s
       if (p.directOnly && !f.direct) continue;
       cands.push({
         mode: "plane", price: f.price, duration: f.duration, depId: info.depId, originLabel: info.label, origin, originCity: info.city,
-        airline: f.airline, direct: f.direct, stops: f.stops, viaNearby: info.nearby, nearbyMinutes: info.minutes, enabled: true, link: f.link,
+        airline: f.airline, direct: f.direct, stops: f.stops, viaNearby: info.nearby, nearbyMinutes: info.minutes, enabled: true, link: f.link, estimated: f.estimated,
       });
     }
   }
@@ -68,8 +68,18 @@ function quote(p: SearchParams, dest: Destination, w: DateWindow, origins: Map<s
   const total = transportTotal + stayTotal;
   return {
     destination: dest, window: w, best, candidates: cands, nightly, rooms, stayTotal, transportTotal, total,
-    perPerson: Math.round(total / p.travelers), temp: dest.temps[w.monthIndex], alternatives: [],
+    perPerson: Math.round(total / p.travelers), temp: dest.temps[w.monthIndex], alternatives: [], estimated: best.estimated === true,
   };
+}
+
+/**
+ * Complète les tarifs réels par des estimations (tarifs de référence) pour les destinations que le fournisseur ne
+ * connaît pas du tout : une destination qui a au moins un prix réel garde seulement ses prix réels, un prix estimé
+ * moins cher ne doit jamais passer devant un vrai.
+ */
+export function withEstimates(real: Fare[], reference: Fare[]): Fare[] {
+  const known = new Set(real.map((f) => f.destId));
+  return real.concat(reference.filter((f) => !known.has(f.destId)).map((f) => ({ ...f, estimated: true })));
 }
 
 /**

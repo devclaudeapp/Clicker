@@ -68,7 +68,7 @@ function TripCard({ trip, from, travelers }: { trip: TripOption; from: string; t
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, padding: "26px 34px", borderRadius: 28, background: "linear-gradient(135deg, #FF6B7A, #FF9A5C)", color: "#1C0D0B" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <div style={{ fontFamily: "Unbounded", fontSize: 72, fontWeight: 800, lineHeight: 1 }}>{eur(trip.perPerson)}</div>
+            <div style={{ fontFamily: "Unbounded", fontSize: 72, fontWeight: 800, lineHeight: 1 }}>{`${trip.estimated ? "~" : ""}${eur(trip.perPerson)}`}</div>
             <div style={{ fontSize: 28, fontWeight: 700 }}>/ pers.</div>
           </div>
           <div style={{ fontSize: 24, fontWeight: 700, opacity: 0.85 }}>{`${MODE_LABEL[trip.best.mode]} + ${w.nights} nuits · ${eur(trip.total)} pour ${travelers}`}</div>

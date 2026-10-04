@@ -3,7 +3,7 @@ import type { SearchParams } from "@/types";
 import { DESTINATIONS } from "./data/destinations";
 import { buildWindows } from "./dates";
 import { resolveDeparture } from "./places";
-import { computeTrips, matchesVibes, originOf, originsFor, sortTrips } from "./pricing";
+import { computeTrips, matchesVibes, originOf, originsFor, sortTrips, withEstimates } from "./pricing";
 import { mockProvider } from "./providers/mock";
 
 const params: SearchParams = {
@@ -95,5 +95,23 @@ describe("computeTrips", () => {
     const o = originOf(bcn, params.departures);
     expect(o.label).toContain(bcn.best.origin!);
     expect(o.ground).toBe(false);
+  });
+});
+
+describe("withEstimates", () => {
+  it("complète seulement les destinations sans aucun prix réel, et les marque", () => {
+    const real = [{ origin: "LYS", destId: "bcn", windowKey: "w1", price: 60, airline: "Vueling", duration: "1 h 35", direct: true }];
+    const reference = [
+      { origin: "LYS", destId: "bcn", windowKey: "w1", price: 38, airline: "Vueling", duration: "1 h 35", direct: true },
+      { origin: "GVA", destId: "bcn", windowKey: "w1", price: 41, airline: "easyJet", duration: "1 h 45", direct: true },
+      { origin: "LYS", destId: "lis", windowKey: "w1", price: 59, airline: "easyJet", duration: "2 h 35", direct: true },
+    ];
+    const out = withEstimates(real, reference);
+    expect(out.map((f) => `${f.origin}>${f.destId}:${f.estimated ? "est" : "réel"}`)).toEqual(["LYS>bcn:réel", "LYS>lis:est"]);
+  });
+  it("sans prix réel du tout, tout est estimé ; sans référence, rien n'est ajouté", () => {
+    const ref = [{ origin: "LYS", destId: "lis", windowKey: "w1", price: 59, airline: "easyJet", duration: "2 h 35", direct: true }];
+    expect(withEstimates([], ref).every((f) => f.estimated)).toBe(true);
+    expect(withEstimates(ref, [])).toEqual(ref);
   });
 });

@@ -2,8 +2,9 @@ import type { DateWindow, SearchParams, TripOption } from "@/types";
 import { DESTINATIONS } from "./data/destinations";
 import { buildWindows, nextMonths } from "./dates";
 import { DEFAULT_DEPARTURES, resolveDeparture } from "./places";
-import { computeTrips, originsFor } from "./pricing";
+import { computeTrips, originsFor, withEstimates } from "./pricing";
 import { getProvider } from "./providers";
+import { mockProvider } from "./providers/mock";
 import type { SharedInput } from "./share";
 
 /** Plafond d'aéroports d'origine par recherche : borne les appels aux fournisseurs de prix. */
@@ -27,7 +28,10 @@ export async function searchTrips(params: SearchParams, opts: SearchOptions = {}
   const provider = getProvider();
   const origins = [...originsFor(params).keys()].slice(0, MAX_ORIGINS);
   const destinations = opts.only ? DESTINATIONS.filter((d) => opts.only!.includes(d.id)) : DESTINATIONS;
-  const fares = await provider.fares({ origins, destinations, windows, directOnly: params.directOnly });
+  const query = { origins, destinations, windows, directOnly: params.directOnly };
+  let fares = await provider.fares(query);
+  // Prix réels : les destinations sans aucun tarif récent restent visibles avec une estimation marquée comme telle.
+  if (provider.name !== "mock") fares = withEstimates(fares, await mockProvider.fares(query));
   return { trips: computeTrips(params, windows, destinations, fares), windows, provider: provider.name };
 }
 

@@ -159,6 +159,7 @@ export function SwipeDeck({ trips, swiped, favCount, emptyMessage, enabled, onDe
                   </div>
                 </div>
                 <div className="price">
+                  {t.estimated && <span className="approx">~</span>}
                   <span className="big num">{eur(t.perPerson)}</span>
                   <span className="per">
                     / pers.

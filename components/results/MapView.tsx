@@ -310,6 +310,7 @@ export function MapView({ trips, inBudgetIds, bestId, favs, departures, view, on
               {activeTrip.destination.city} <span className="hint">· {activeTrip.destination.country}</span>
             </h4>
             <div className="price">
+              {activeTrip.estimated && <span className="approx">~</span>}
               <span className="big num">{eur(activeTrip.perPerson)}</span>
               <span className="per">/ pers. · {activeTrip.window.nights} nuits</span>
             </div>

@@ -14,7 +14,8 @@ export function TransportLine({ trip }: { trip: TripOption }) {
       {b.mode === "plane" ? (
         <span>
           Vol A/R {b.airline}
-          {b.direct ? ", direct" : ""}, {b.duration} · <b className="num">{eur(b.price)}</b>/pers.
+          {b.direct ? ", direct" : ""}, {b.duration} · {b.estimated ? "~" : ""}
+          <b className="num">{eur(b.price)}</b>/pers.{b.estimated ? " (estimation)" : ""}
         </span>
       ) : (
         <span>
@@ -43,6 +44,11 @@ export function TripTags({ trip, isBest }: { trip: TripOption; isBest: boolean }
   return (
     <div className="tags">
       {isBest && <span className="tag best">Meilleur prix</span>}
+      {trip.estimated && (
+        <span className="tag estimate" title="Pas de tarif récent chez Aviasales pour ce trajet : tarif de référence, à confirmer sur le site">
+          Estimation
+        </span>
+      )}
       <span className="tag dates">
         <Icon name="cal" />
         {fmtShort(trip.window.out)} → {fmtShort(trip.window.ret)}

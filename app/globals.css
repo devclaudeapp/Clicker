@@ -200,6 +200,9 @@
   .fav.on svg { fill: currentColor; }
   .price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .price .big { font-family: var(--display); font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+  /* Prix estimé (pas de tarif réel récent) : tilde devant le montant et étiquette ambrée */
+  .price .approx { font-family: var(--display); font-size: 22px; font-weight: 800; color: var(--warn); margin-right: -4px; }
+  .tag.estimate { background: rgba(255, 179, 71, 0.22); color: #ffe2b8; }
   .price .per { color: var(--muted); font-size: 12.5px; }
   .breakdown { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13.5px; color: var(--muted); }
   .breakdown li { display: flex; gap: 8px; align-items: center; min-width: 0; }

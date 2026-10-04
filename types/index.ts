@@ -167,6 +167,8 @@ export interface Fare {
   stops?: number;
   /** Lien de réservation fourni par le fournisseur, s'il en donne un. */
   link?: string;
+  /** Tarif de référence utilisé faute de prix réel pour cette destination : à présenter comme une estimation. */
+  estimated?: boolean;
 }
 
 export interface TransportCandidate {
@@ -187,6 +189,8 @@ export interface TransportCandidate {
   /** Faux quand le mode est décoché : on le montre dans la fiche mais il ne compte pas dans le prix. */
   enabled: boolean;
   link?: string;
+  /** Vol estimé (tarif de référence) faute de prix réel. */
+  estimated?: boolean;
 }
 
 /** Tranches d'âge présentes dans le groupe. */
@@ -283,4 +287,6 @@ export interface TripOption {
   perPerson: number;
   temp: number;
   alternatives: { window: DateWindow; perPerson: number }[];
+  /** Vrai quand le transport retenu est une estimation : le prix s'affiche avec « ~ » et une étiquette. */
+  estimated?: boolean;
 }

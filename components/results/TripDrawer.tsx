@@ -127,8 +127,12 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
               <tr>
                 <td>
                   {MODE_LABEL[trip.best.mode]} A/R{trip.best.mode === "plane" ? ` · ${trip.best.airline}` : ""} × {a}
+                  {trip.estimated && <small>Estimation : pas de tarif récent chez Aviasales, à confirmer sur le site</small>}
                 </td>
-                <td className="num">{eur(trip.transportTotal)}</td>
+                <td className="num">
+                  {trip.estimated ? "~" : ""}
+                  {eur(trip.transportTotal)}
+                </td>
               </tr>
               <tr>
                 <td>
@@ -195,9 +199,15 @@ export function TripDrawer({ trip, departures, travelers, profile, flexible, fav
                     {f.viaNearby && f.nearbyMinutes != null ? ` · ${minutesLabel(f.nearbyMinutes)} pour rejoindre ${f.originCity}` : ""}
                   </span>
                   <span className="p num">
+                    {f.estimated ? "~" : ""}
                     {eur(f.price)} <small>/pers. A/R</small>
                   </span>
                 </div>
+                {f.estimated && (
+                  <div className="opt-row">
+                    <span className="est">Estimation : pas de tarif récent chez Aviasales pour ce trajet, prix à confirmer sur le site</span>
+                  </div>
+                )}
                 <div className="links">
                   <Ext href={f.link ?? LINKS.aviasales(flightLink(f.origin!))} label="Réserver sur Aviasales" primary={i === 0} />
                   <Ext href={LINKS.googleFlights(flightLink(f.origin!))} label="Google Flights" />
