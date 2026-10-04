@@ -26,8 +26,9 @@ export function warmPlan(now = new Date()): WarmStep[] {
 }
 
 /**
- * Lance les recherches du plan l'une après l'autre (le fournisseur bride déjà son débit) et n'en commence plus une
- * fois le temps alloué dépassé : le reste attendra la nuit suivante, ou la première recherche d'un visiteur.
+ * Lance les recherches du plan l'une après l'autre (le fournisseur bride déjà son débit). La première, celle par
+ * défaut de l'app, est toujours faite ; les suivantes ne commencent plus une fois le temps alloué atteint : le reste
+ * attendra la nuit suivante, ou la première recherche d'un visiteur.
  * Avec le cache partagé, chaque recherche faite ici profite à toutes les instances pendant 24 h.
  */
 export async function runWarm(budgetMs: number, now = new Date()): Promise<WarmResult> {
@@ -35,7 +36,7 @@ export async function runWarm(budgetMs: number, now = new Date()): Promise<WarmR
   const done: WarmStep[] = [];
   const skipped: WarmStep[] = [];
   for (const step of warmPlan(now)) {
-    if (Date.now() - t0 > budgetMs) {
+    if (done.length > 0 && Date.now() - t0 >= budgetMs) {
       skipped.push(step);
       continue;
     }

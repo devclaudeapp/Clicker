@@ -10,7 +10,7 @@ describe("préchauffage du cache des prix", () => {
     expect(plan[2].departures).toEqual(["Paris"]);
   });
 
-  it("n'entame plus de recherche une fois le budget de temps dépassé", async () => {
+  it("fait toujours la première recherche, puis n'en entame plus une fois le budget de temps atteint", async () => {
     const r = await runWarm(0, new Date("2026-10-04T00:00:00Z"));
     expect(r.done).toHaveLength(1);
     expect(r.skipped).toHaveLength(WARM_DEPARTURES.length * WARM_MONTHS - 1);
