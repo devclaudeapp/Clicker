@@ -67,6 +67,10 @@ Le cache de 24 h vit en mémoire, donc par instance : sur Vercel, une instance r
 
 En local, `vercel env pull .env.local` récupère ces variables si tu veux le même cache qu'en production.
 
-## 7. Plus tard : prix frais à la demande
+## 7. Préchauffage nocturne
+
+Même avec le cache partagé, la première recherche après l'expiration des 24 h coûte ses ~300 appels (30 à 60 s) au visiteur qui tombe dessus. Une tâche planifiée Vercel (`vercel.json`, tous les jours à 4 h UTC) appelle `GET /api/warm`, qui rejoue les recherches courantes (`lib/warm.ts` : Lyon + Genève, Paris, Marseille, Lille, Bordeaux, sur le mois courant et le suivant, alentours compris) dans un budget de 200 s : à l'ouverture, les visiteurs trouvent le cache déjà rempli. La route n'accepte que l'en-tête `Authorization: Bearer <CRON_SECRET>` que Vercel ajoute lui-même quand la variable `CRON_SECRET` existe (posée sur le projet) ; sans elle, elle répond 401. Pour la lancer à la main : `curl -H "Authorization: Bearer $CRON_SECRET" https://escapade-eta.vercel.app/api/warm`.
+
+## 8. Plus tard : prix frais à la demande
 
 Pour une recherche vraiment en direct sur quelques trajets (par exemple au moment de réserver), **SerpApi** expose les résultats Google Flights avec 250 recherches gratuites par mois. La variable `SERPAPI_KEY` est prévue dans `.env.example` ; le connecteur n'est pas encore écrit. Les autres pistes (Skyscanner, Kiwi, Booking Demand API) sont réservées aux partenaires sous contrat et ne conviennent pas à un projet solo.
