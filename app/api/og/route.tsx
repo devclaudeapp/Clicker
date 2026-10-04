@@ -4,6 +4,7 @@ import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 import type { TripOption } from "@/types";
 import { eur, fmtShort, listFr } from "@/lib/format";
+import { photoCredit, photoFor, photoUrl } from "@/lib/photos";
 import { sceneFor } from "@/lib/scene";
 import { paramsFromShared, searchTrips } from "@/lib/search-server";
 import { decodeShare } from "@/lib/share";
@@ -32,6 +33,27 @@ function loadFonts() {
 
 const sceneDataUri = (trip: TripOption) => `data:image/svg+xml;base64,${Buffer.from(sceneFor(trip.destination)).toString("base64")}`;
 
+/** Photos déjà converties, par destination : une fois par processus (les échecs ne sont pas retenus). */
+const photoCache = new Map<string, string>();
+const PHOTO_TIMEOUT_MS = 2500;
+
+/** La photo de la destination en data URI pour l'image d'aperçu, ou null (absente, trop lente, en erreur) : le SVG prend le relais. */
+async function photoDataUri(destId: string): Promise<string | null> {
+  const cached = photoCache.get(destId);
+  if (cached) return cached;
+  const photo = photoFor(destId);
+  if (!photo) return null;
+  try {
+    const res = await fetch(photoUrl(photo, 1280), { signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS), headers: { "user-agent": "escapade/0.1 (image d'aperçu)" } });
+    if (!res.ok) return null;
+    const uri = `data:${res.headers.get("content-type") ?? "image/jpeg"};base64,${Buffer.from(await res.arrayBuffer()).toString("base64")}`;
+    photoCache.set(destId, uri);
+    return uri;
+  } catch {
+    return null;
+  }
+}
+
 function Brand() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -49,17 +71,18 @@ function Pill({ children }: { children: string }) {
   return <div style={{ display: "flex", padding: "12px 22px", borderRadius: 999, background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.25)", color: "#F2F4FA", fontSize: 26, fontWeight: 700 }}>{children}</div>;
 }
 
-/** Carte d'une escapade précise : paysage en fond, ville, dates, prix par personne. */
-function TripCard({ trip, from, travelers }: { trip: TripOption; from: string; travelers: number }) {
+/** Carte d'une escapade précise : photo (ou paysage SVG) en fond, ville, dates, prix par personne. */
+function TripCard({ trip, from, travelers, background, credit }: { trip: TripOption; from: string; travelers: number; background: string; credit?: string }) {
   const d = trip.destination;
   const w = trip.window;
   return (
-    <div style={{ width: W, height: H, display: "flex", position: "relative", fontFamily: "Manrope", color: "#F2F4FA", backgroundColor: "#070A12", backgroundImage: `url(${sceneDataUri(trip)})`, backgroundSize: `${W}px ${H}px` }}>
-      <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, background: "linear-gradient(to top, rgba(7,10,18,0.97) 0%, rgba(7,10,18,0.62) 42%, rgba(7,10,18,0.08) 100%)" }} />
+    <div style={{ width: W, height: H, display: "flex", position: "relative", fontFamily: "Manrope", color: "#F2F4FA", backgroundColor: "#070A12", backgroundImage: `url(${background})`, backgroundSize: `${W}px ${H}px`, backgroundPosition: "center" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, width: W, height: H, background: "linear-gradient(to top, rgba(7,10,18,0.97) 0%, rgba(7,10,18,0.62) 42%, rgba(7,10,18,0.12) 100%)" }} />
       <div style={{ position: "absolute", top: 44, left: 56, right: 56, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Brand />
         <Pill>{`depuis ${from}`}</Pill>
       </div>
+      {credit && <div style={{ position: "absolute", top: 116, right: 56, fontSize: 18, fontWeight: 500, color: "rgba(230,236,243,0.72)" }}>{credit}</div>}
       <div style={{ position: "absolute", left: 56, right: 56, bottom: 48, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 720 }}>
           <div style={{ fontFamily: "Unbounded", fontSize: 92, fontWeight: 800, lineHeight: 1, letterSpacing: -2 }}>{d.city}</div>
@@ -111,8 +134,12 @@ export async function GET(req: NextRequest) {
   const inBudget = trips.filter((t) => t.perPerson <= params.budget && params.vibes.every((v) => t.destination.vibes.includes(v))).sort((a, b) => a.perPerson - b.perPerson);
   const open = shared.open ? trips.find((t) => t.destination.id === shared.open) : undefined;
   const when = params.dateMode === "fixed" ? `du ${fmtShort(params.dateOut)} au ${fmtShort(params.dateIn)}` : { weekend: "ce week-end", long: "ce long week-end", week: "cette semaine" }[params.duration];
+  // La vraie photo de la destination quand elle arrive à temps, sinon le paysage SVG ; crédit affiché avec la photo.
+  const photo = open ? photoFor(open.destination.id) : null;
+  const photoUri = open ? await photoDataUri(open.destination.id) : null;
+  const background = open ? (photoUri ?? sceneDataUri(open)) : "";
 
-  return new ImageResponse(open ? <TripCard trip={open} from={from} travelers={params.travelers} /> : <SearchCard count={inBudget.length} from={from} cheapest={inBudget[0] ?? null} when={when} />, {
+  return new ImageResponse(open ? <TripCard trip={open} from={from} travelers={params.travelers} background={background} credit={photoUri && photo ? photoCredit(photo) : undefined} /> : <SearchCard count={inBudget.length} from={from} cheapest={inBudget[0] ?? null} when={when} />, {
     width: W,
     height: H,
     fonts: (await loadFonts()).map((f) => ({ name: f.name, data: f.data, weight: f.weight, style: "normal" as const })),
