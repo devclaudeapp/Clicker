@@ -227,6 +227,9 @@
   @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   .note { font-size: 13px; color: var(--muted); }
   .note.warn { color: var(--warn); font-weight: 700; }
+  /* Activités écartées par la période : une ligne discrète, l'icône calée sur la première ligne. */
+  .plan .note.season { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; line-height: 1.45; }
+  .plan .note.season > :first-child { flex: none; margin-top: 2px; }
   .foot { padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); max-width: 70ch; }
 
   /* Mode swipe */

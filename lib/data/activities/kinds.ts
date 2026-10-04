@@ -6,7 +6,7 @@ const ADULTS: AgeBand[] = ["young", "adults"];
 const ALL_GROUPS: GroupType[] = ["solo", "couple", "friends", "family"];
 const DAY: DaySlot[] = ["morning", "afternoon"];
 
-type Defaults = Pick<Activity, "ages" | "groups" | "slots" | "hours" | "price"> & { bookable?: boolean };
+type Defaults = Pick<Activity, "ages" | "groups" | "slots" | "hours" | "price"> & { bookable?: boolean; minTemp?: number };
 
 /** Valeurs par défaut par type d'activité ; chaque entrée du catalogue peut les surcharger. */
 export const KIND_DEFAULTS: Record<ActivityKind, Defaults> = {
@@ -14,7 +14,7 @@ export const KIND_DEFAULTS: Record<ActivityKind, Defaults> = {
   museum: { ages: ALL_AGES, groups: ALL_GROUPS, slots: DAY, hours: 2, price: 1 },
   walk: { ages: ALL_AGES, groups: ALL_GROUPS, slots: ["morning", "afternoon", "evening"], hours: 2, price: 0 },
   viewpoint: { ages: ALL_AGES, groups: ALL_GROUPS, slots: ["afternoon", "evening"], hours: 1, price: 0 },
-  beach: { ages: ALL_AGES, groups: ALL_GROUPS, slots: DAY, hours: 3, price: 0 },
+  beach: { ages: ALL_AGES, groups: ALL_GROUPS, slots: DAY, hours: 3, price: 0, minTemp: 17 },
   nature: { ages: ALL_AGES, groups: ALL_GROUPS, slots: DAY, hours: 3, price: 0 },
   food: { ages: ALL_AGES, groups: ALL_GROUPS, slots: ["afternoon", "evening"], hours: 2, price: 2 },
   market: { ages: ALL_AGES, groups: ALL_GROUPS, slots: ["morning"], hours: 1.5, price: 1 },

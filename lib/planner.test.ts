@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { TravelProfile } from "@/types";
 import { ACTIVITIES_BY_DEST } from "./data/activities";
 import { DESTINATIONS } from "./data/destinations";
-import { itineraryToText, planTrip, scoreActivity, slotsForDay, activityOptions } from "./planner";
+import { type Period, activityOptions, inSeason, itineraryToText, periodFit, planTrip, scoreActivity, slotsForDay, tripMonths, whenLabel } from "./planner";
 
 const friends: TravelProfile = { group: "friends", ages: ["young"], vibes: ["party", "beach"], travelers: 4 };
 const family: TravelProfile = { group: "family", ages: ["kids", "adults"], vibes: ["sun", "nature"], travelers: 4 };
 const bcn = ACTIVITIES_BY_DEST.bcn;
+const vie = ACTIVITIES_BY_DEST.vie;
+const warm: Period = { months: [7], temp: 25 };
+const mild: Period = { months: [5], temp: 19 };
+const cold: Period = { months: [1], temp: 10 };
 
 describe("catalogue d'activités", () => {
   it("chaque destination a au moins six activités, avec des identifiants uniques et des envies connues", () => {
@@ -19,8 +23,47 @@ describe("catalogue d'activités", () => {
         ids.add(a.id);
         expect(a.vibes.length, a.id).toBeGreaterThan(0);
         expect(a.slots.length, a.id).toBeGreaterThan(0);
+        if (a.season) {
+          expect(a.season.from, a.id).toBeGreaterThanOrEqual(1);
+          expect(a.season.from, a.id).toBeLessThanOrEqual(12);
+          expect(a.season.to, a.id).toBeGreaterThanOrEqual(1);
+          expect(a.season.to, a.id).toBeLessThanOrEqual(12);
+        }
       }
     }
+  });
+  it("chaque destination garde au moins six activités en plein hiver", () => {
+    for (const d of DESTINATIONS) {
+      const acts = (ACTIVITIES_BY_DEST[d.id] ?? []).filter((a) => !periodFit(a, { months: [1], temp: d.temps[0] }));
+      expect(acts.length, d.city).toBeGreaterThanOrEqual(6);
+    }
+  });
+});
+
+describe("période du séjour", () => {
+  it("liste les mois couverts, à cheval sur deux mois compris", () => {
+    expect(tripMonths("2026-11-13", 2)).toEqual([11]);
+    expect(tripMonths("2026-11-28", 3)).toEqual([11, 12]);
+    expect(tripMonths("2026-12-30", 2)).toEqual([12, 1]);
+  });
+  it("une saison peut passer l'hiver", () => {
+    expect(inSeason({ from: 5, to: 10 }, 7)).toBe(true);
+    expect(inSeason({ from: 5, to: 10 }, 11)).toBe(false);
+    expect(inSeason({ from: 11, to: 2 }, 1)).toBe(true);
+    expect(inSeason({ from: 11, to: 2 }, 6)).toBe(false);
+  });
+  it("écarte le hors-saison et le trop-froid, et dit quand revenir", () => {
+    const noel = vie.find((a) => a.id === "vie-noel")!;
+    const beach = bcn.find((a) => a.kind === "beach")!;
+    expect(periodFit(noel, warm)).toBe("season");
+    expect(periodFit(noel, { months: [12], temp: 3 })).toBeNull();
+    expect(periodFit(noel, { months: [10, 11], temp: 8 })).toBeNull();
+    expect(periodFit(beach, cold)).toBe("cold");
+    expect(periodFit(beach, warm)).toBeNull();
+    expect(whenLabel({ activity: noel, reason: "season" })).toBe("de novembre à décembre");
+    expect(whenLabel({ activity: { ...noel, season: { from: 3, to: 3 } }, reason: "season" })).toBe("en mars");
+    expect(whenLabel({ activity: beach, reason: "cold" })).toBe("à partir de 17 °C");
+    expect(whenLabel({ activity: { ...noel, season: { from: 4, to: 10 } }, reason: "season" })).toBe("d'avril à octobre");
   });
 });
 
@@ -37,12 +80,19 @@ describe("scoreActivity", () => {
   it("exclut les soirées quand des enfants sont là, et favorise les envies", () => {
     const club = bcn.find((a) => a.kind === "nightlife")!;
     const beach = bcn.find((a) => a.kind === "beach")!;
-    expect(scoreActivity(club, family, 20, 0)).toBeNull();
-    expect(scoreActivity(club, friends, 20, 0)!).toBeGreaterThan(scoreActivity(beach, { ...friends, vibes: ["party"] }, 20, 0)!);
+    expect(scoreActivity(club, family, warm, 0)).toBeNull();
+    expect(scoreActivity(club, friends, warm, 0)!).toBeGreaterThan(scoreActivity(beach, { ...friends, vibes: ["party"] }, warm, 0)!);
   });
-  it("pénalise la plage par temps froid", () => {
+  it("écarte la plage par temps froid et la tempère quand il fait seulement doux", () => {
     const beach = bcn.find((a) => a.kind === "beach")!;
-    expect(scoreActivity(beach, friends, 10, 0)!).toBeLessThan(scoreActivity(beach, friends, 25, 0)!);
+    expect(scoreActivity(beach, friends, cold, 0)).toBeNull();
+    expect(scoreActivity(beach, friends, mild, 0)!).toBeLessThan(scoreActivity(beach, friends, warm, 0)!);
+  });
+  it("met en avant ce qui ne se fait qu'à cette saison, et l'exclut le reste de l'année", () => {
+    const noel = vie.find((a) => a.id === "vie-noel")!;
+    const december: Period = { months: [12], temp: 3 };
+    expect(scoreActivity(noel, friends, warm, 0)).toBeNull();
+    expect(scoreActivity(noel, friends, december, 0)!).toBeGreaterThan(scoreActivity({ ...noel, season: undefined }, friends, december, 0)!);
   });
 });
 
@@ -120,6 +170,22 @@ describe("planTrip", () => {
     expect(txt.startsWith("Programme à Barcelone")).toBe(true);
     expect(txt).toContain("Samedi");
     expect(txt).toContain("Activités : ~");
+  });
+  it("écarte la plage et la fête de septembre d'un week-end de novembre, et l'explique", () => {
+    const it = planTrip(bcn, { nights: 2, out: "2026-11-13", temp: 14, profile: friends });
+    const skipped = it.skipped.map((s) => s.activity.id);
+    expect(skipped).toContain("bcn-barceloneta");
+    expect(skipped).toContain("bcn-merce");
+    const used = [...it.days.flatMap((d) => d.slots.map((s) => s.activity.id)), ...it.leftovers.map((a) => a.id)];
+    expect(used.some((id) => skipped.includes(id))).toBe(false);
+    expect(itineraryToText("Barcelone", it)).toContain("Pas à cette période : ");
+  });
+  it("un séjour fin octobre voit déjà le marché de Noël viennois, et encore le Prater", () => {
+    const it = planTrip(vie, { nights: 3, out: "2026-10-30", temp: 8, profile: { group: "couple", ages: ["adults"], vibes: ["love", "culture"], travelers: 2 } });
+    const skipped = it.skipped.map((s) => s.activity.id);
+    expect(skipped).not.toContain("vie-noel");
+    expect(skipped).not.toContain("vie-prater");
+    expect(skipped).toContain("vie-danube");
   });
 });
 

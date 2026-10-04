@@ -3,9 +3,10 @@ import type { Activity, DaySlot, Itinerary as ItineraryData, TravelProfile, Trip
 import { KIND_LABEL } from "@/lib/data/activities/kinds";
 import { AGE_LABEL, GROUP_LABEL } from "@/lib/data/profile";
 import { VIBE_BY_ID } from "@/lib/data/vibes";
-import { eur, listFr, plural } from "@/lib/format";
+import { MONTHS_FR } from "@/lib/dates";
+import { eur, listFr, parseISO, plural } from "@/lib/format";
 import { LINKS } from "@/lib/links";
-import { PRICE_LABEL, SLOT_ORDER, activityOptions, itineraryToText } from "@/lib/planner";
+import { PRICE_LABEL, SLOT_ORDER, activityOptions, itineraryToText, whenLabel } from "@/lib/planner";
 import { Icon } from "../ui/Icon";
 
 const SLOT_LABEL: Record<DaySlot, string> = { morning: "Matin", afternoon: "Après-midi", evening: "Soir" };
@@ -122,10 +123,11 @@ interface Props {
   onToast: (msg: string) => void;
 }
 
-/** « Ton programme » : jour par jour, adapté au groupe, aux âges, aux envies et à la météo. */
+/** « Ton programme » : jour par jour, adapté au groupe, aux âges, aux envies, à la saison et à la météo. */
 export function Itinerary({ trip, profile, state, onToast }: Props) {
   const city = trip.destination.city;
   const it = state.itinerary;
+  const month = MONTHS_FR[parseISO(trip.window.out).getUTCMonth()];
   const vibeLabels = profile.vibes.map((v) => VIBE_BY_ID[v].label);
   const recap = [GROUP_LABEL[profile.group], listFr(profile.ages.map((a) => AGE_LABEL[a])), `${profile.travelers} pers.`, vibeLabels.length ? `envies : ${listFr(vibeLabels).toLowerCase()}` : "toutes envies"].join(" · ");
 
@@ -187,6 +189,14 @@ export function Itinerary({ trip, profile, state, onToast }: Props) {
                 ))}
               </ul>
             </details>
+          )}
+          {it.skipped.length > 0 && (
+            <p className="note season">
+              <Icon name="cal" />
+              <span>
+                Pas en {month} : {listFr(it.skipped.map((s) => `${s.activity.name} (${whenLabel(s)})`))}.
+              </span>
+            </p>
           )}
           <div className="plan-foot">
             <span className="est">

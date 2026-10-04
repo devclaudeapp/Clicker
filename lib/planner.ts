@@ -1,4 +1,5 @@
-import type { Activity, ActivityKind, DaySlot, Itinerary, PlanDay, PlanSlot, TravelProfile } from "@/types";
+import type { Activity, ActivityKind, DaySlot, Itinerary, PlanDay, PlanSlot, Season, SkippedActivity, TravelProfile } from "@/types";
+import { MONTHS_FR } from "./dates";
 import { addDays, hash, parseISO, toISO } from "./format";
 
 /**
@@ -17,22 +18,70 @@ export const PRICE_LABEL = ["gratuit", "~10 €", "~25 €", "~60 €"] as const
 
 /** Au-delà, les journées restent libres : on garde les idées en réserve plutôt que de répéter. */
 const MAX_PLANNED_DAYS = 5;
-/** Types qui n'ont de sens que par beau temps. */
-const WARM_KINDS = new Set<ActivityKind>(["beach", "boat"]);
 const DAYS_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+/** Types où une longue sortie pèse par forte chaleur. */
+const OUTDOOR_KINDS = new Set<ActivityKind>(["walk", "nature", "daytrip"]);
 
 interface Scored {
   activity: Activity;
   score: number;
 }
 
-/** Note une activité pour un profil : envies, groupe, météo, et un peu de hasard stable pour varier d'un tirage à l'autre. */
-export function scoreActivity(a: Activity, profile: TravelProfile, temp: number, seed: number): number | null {
+/** Période d'un séjour : les mois qu'il touche (1 à 12) et la température moyenne attendue. */
+export interface Period {
+  months: number[];
+  temp: number;
+}
+
+/** Les mois (1 à 12) couverts par un séjour, du départ au retour. */
+export function tripMonths(out: string, nights: number): number[] {
+  const months: number[] = [];
+  for (let i = 0; i <= nights; i++) {
+    const m = addDays(parseISO(out), i).getUTCMonth() + 1;
+    if (!months.includes(m)) months.push(m);
+  }
+  return months;
+}
+
+/** Vrai si le mois (1 à 12) tombe dans la saison, bornes incluses, y compris quand elle passe l'hiver (11 → 2). */
+export const inSeason = (season: Season, month: number): boolean =>
+  season.from <= season.to ? month >= season.from && month <= season.to : month >= season.from || month <= season.to;
+
+/** Pourquoi la période écarte une activité, ou null si elle convient. */
+export function periodFit(a: Activity, period: Period): SkippedActivity["reason"] | null {
+  const season = a.season;
+  if (season && !period.months.some((m) => inSeason(season, m))) return "season";
+  if (a.minTemp !== undefined && period.temp < a.minTemp) return "cold";
+  return null;
+}
+
+/** « de novembre », « d'avril » : la préposition s'élide devant une voyelle. */
+const fromMonth = (m: number): string => (/^[aeiouéèê]/.test(MONTHS_FR[m - 1]) ? `d'${MONTHS_FR[m - 1]}` : `de ${MONTHS_FR[m - 1]}`);
+
+/** Quand une activité écartée redevient possible : « de novembre à décembre », « d'avril à octobre », « en mars », « à partir de 17 °C ». */
+export function whenLabel(s: SkippedActivity): string {
+  const { season, minTemp } = s.activity;
+  if (s.reason === "season" && season) return season.from === season.to ? `en ${MONTHS_FR[season.from - 1]}` : `${fromMonth(season.from)} à ${MONTHS_FR[season.to - 1]}`;
+  return `à partir de ${minTemp} °C`;
+}
+
+/**
+ * Note une activité pour un profil et une période : envies, groupe, saison, météo, et un peu de hasard stable pour
+ * varier d'un tirage à l'autre. Null quand elle est exclue (période, âges).
+ */
+export function scoreActivity(a: Activity, profile: TravelProfile, period: Period, seed: number): number | null {
+  if (periodFit(a, period)) return null;
   if (profile.ages.some((band) => !a.ages.includes(band))) return null;
   let s = 1;
   if (profile.vibes.length) s += 2 * profile.vibes.filter((v) => a.vibes.includes(v)).length;
   if (a.groups.includes(profile.group)) s += 1.5;
-  if (WARM_KINDS.has(a.kind) && temp < 17) s -= 3;
+  // Ce qui ne se fait qu'à cette période de l'année passe devant : c'est une raison de venir maintenant.
+  if (a.season) s += 1.5;
+  // Baignade et sports d'eau : tièdes sous les 22 °C, à leur avantage par vraie chaleur.
+  if (a.minTemp !== undefined) s += period.temp >= 26 ? 1 : period.temp < 22 ? -1.5 : 0;
+  // Hammam, thermes et saunas réconfortent quand il fait froid ; une longue sortie pèse par canicule.
+  if (a.kind === "spa" && period.temp < 12) s += 1;
+  if (period.temp >= 30 && OUTDOOR_KINDS.has(a.kind) && a.hours >= 3) s -= 1;
   if (a.kind === "nightlife" && profile.group === "family") s -= 4;
   if (profile.group === "couple" && a.vibes.includes("love")) s += 1;
   if (profile.group === "friends" && a.vibes.includes("friends")) s += 1;
@@ -165,15 +214,25 @@ function compose(scored: Scored[], totalDays: number, planned: number, out: stri
 
 /**
  * Compose un programme jour par jour : les créneaux de chaque journée reçoivent les meilleures activités du profil,
- * sans répéter un type dans la journée, une seule excursion par séjour (elle prend la journée). Sur un long séjour,
- * on détaille autant de journées que le catalogue en remplit sans trou, et le reste est laissé libre.
+ * sans répéter un type dans la journée, une seule excursion par séjour (elle prend la journée). Les activités hors
+ * saison ou trop fraîches pour les dates sont écartées et renvoyées à part. Sur un long séjour, on détaille autant de
+ * journées que le catalogue en remplit sans trou, et le reste est laissé libre.
  */
 export function planTrip(activities: Activity[], opts: PlanOptions): Itinerary {
   const seed = opts.seed ?? 0;
-  const scored: Scored[] = activities
-    .map((activity) => ({ activity, score: scoreActivity(activity, opts.profile, opts.temp, seed) }))
-    .filter((s): s is Scored => s.score !== null)
-    .sort((a, b) => b.score - a.score);
+  const period: Period = { months: tripMonths(opts.out, opts.nights), temp: opts.temp };
+  const skipped: SkippedActivity[] = [];
+  const scored: Scored[] = [];
+  for (const activity of activities) {
+    const reason = periodFit(activity, period);
+    if (reason) {
+      skipped.push({ activity, reason });
+      continue;
+    }
+    const score = scoreActivity(activity, opts.profile, period, seed);
+    if (score !== null) scored.push({ activity, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
 
   const totalDays = Math.max(1, opts.nights + 1);
   const maxPlanned = Math.min(totalDays, MAX_PLANNED_DAYS);
@@ -194,7 +253,7 @@ export function planTrip(activities: Activity[], opts: PlanOptions): Itinerary {
   const used = new Set(days.flatMap((d) => d.slots.map((s) => s.activity.id)));
   const leftovers = scored.filter((s) => !used.has(s.activity.id) && s.score > 1).slice(0, 6).map((s) => s.activity);
   const costPerPerson = days.reduce((sum, d) => sum + d.slots.reduce((s, x) => s + PRICE_LEVEL[x.activity.price], 0), 0);
-  return { days, freeDays: Math.max(0, totalDays - days.length), leftovers, costPerPerson, seed };
+  return { days, freeDays: Math.max(0, totalDays - days.length), leftovers, skipped, costPerPerson, seed };
 }
 
 /** Programme en texte brut, prêt à coller dans une conversation de groupe. */
@@ -211,6 +270,7 @@ export function itineraryToText(city: string, it: Itinerary): string {
   }
   if (it.freeDays) lines.push("", `+ ${it.freeDays} journée${it.freeDays > 1 ? "s" : ""} libre${it.freeDays > 1 ? "s" : ""}`);
   if (it.leftovers.length) lines.push("", `Autres idées : ${it.leftovers.map((a) => a.name).join(", ")}`);
+  if (it.skipped.length) lines.push("", `Pas à cette période : ${it.skipped.map((s) => `${s.activity.name} (${whenLabel(s)})`).join(", ")}`);
   lines.push("", `Activités : ~${it.costPerPerson} € par personne`);
   return lines.join("\n");
 }

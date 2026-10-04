@@ -216,6 +216,12 @@ export type ActivityKind =
   | "daytrip"
   | "show";
 
+/** Période de l'année où une activité a lieu, en mois de 1 à 12, bornes incluses ; peut passer l'hiver (11 → 2). */
+export interface Season {
+  from: number;
+  to: number;
+}
+
 /** Une activité du catalogue éditorial, rattachée à une destination. */
 export interface Activity {
   id: string;
@@ -237,6 +243,16 @@ export interface Activity {
   bookable?: boolean;
   /** Requête Google Maps si le nom seul est ambigu. */
   query?: string;
+  /** Mois où l'activité existe (marché de Noël, aurores, bateaux d'été) : écartée le reste de l'année. */
+  season?: Season;
+  /** Température moyenne minimale pour qu'elle ait un sens (baignade, paddle) : écartée en dessous. */
+  minTemp?: number;
+}
+
+/** Une activité écartée par la période du séjour : hors de sa saison, ou trop froid pour elle. */
+export interface SkippedActivity {
+  activity: Activity;
+  reason: "season" | "cold";
 }
 
 /** Qui part : sert à adapter le programme. */
@@ -268,6 +284,8 @@ export interface Itinerary {
   /** Jours non détaillés (séjours longs) : nombre de journées libres. */
   freeDays: number;
   leftovers: Activity[];
+  /** Activités du catalogue écartées pour la période (hors saison, trop froid) : affichées pour l'expliquer. */
+  skipped: SkippedActivity[];
   /** Estimation des activités retenues, par personne. */
   costPerPerson: number;
   seed: number;
